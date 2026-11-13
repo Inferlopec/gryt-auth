@@ -1,0 +1,255 @@
+# Inferlo identity stack: Keycloak + Gryt Identity Service
+# Pure add-on to the existing infrastructure:
+#  - ports are published on 127.0.0.1 only (not visible externally, firewall untouched)
+#  - Caddy (host network) proxies auth.inferlo.xyz / id.inferlo.xyz
+name: inferlo-identity
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: inferlo-identity-postgres
+    environment:
+      POSTGRES_DB: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
+      POSTGRES_USER: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
+      POSTGRES_PASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD:?set in .env}
+    volumes:
+      - inferlo-identity-postgres-data:/var/lib/postgresql/data
+    networks:
+      - inferlo-identity
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${GRYT_AUTH_POSTGRES_USER:-keycloak} -d ${GRYT_AUTH_POSTGRES_DB:-keycloak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.3
+    container_name: inferlo-identity-keycloak
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak-import:
+        condition: service_completed_successfully
+      keycloak-bootstrap-admin:
+        condition: service_completed_successfully
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD:?set in .env}
+
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
+      KC_DB_USERNAME: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
+      KC_DB_PASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
+
+      # Caddy terminates TLS and sends X-Forwarded-*
+      KC_HOSTNAME: ${GRYT_KEYCLOAK_HOSTNAME_URL:-https://auth.inferlo.xyz}
+      KC_HOSTNAME_ADMIN: ${GRYT_KEYCLOAK_HOSTNAME_ADMIN_URL:-https://auth.inferlo.xyz}
+      KC_HOSTNAME_STRICT: "true"
+      KC_PROXY_HEADERS: xforwarded
+
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
+
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_PORT: "9000"
+      KC_HTTP_MANAGEMENT_SCHEME: "http"
+
+      KC_FEATURES: user-event-metrics,update-email,recovery-codes
+      KC_EVENT_METRICS_USER_ENABLED: "true"
+    command: ["start"]
+    ports:
+      - "127.0.0.1:${GRYT_KEYCLOAK_PORT:-18080}:8080"
+    networks:
+      - inferlo-identity
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # One-shot: realm import (only when GRYT_IMPORT_REALM=1; skipped by default).
+  # The script refuses to run while keycloak is up (protection against --override).
+  keycloak-import:
+    image: quay.io/keycloak/keycloak:26.5.3
+    container_name: inferlo-identity-keycloak-import
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
+      KC_DB_USERNAME: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
+      KC_DB_PASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
+      GRYT_IMPORT_REALM: ${GRYT_IMPORT_REALM:-0}
+      GRYT_SMTP_HOST: ""
+      GRYT_SMTP_PORT: ""
+      GRYT_SMTP_FROM: ""
+      GRYT_SMTP_FROM_NAME: ""
+      GRYT_SMTP_REPLY_TO: ""
+      GRYT_SMTP_REPLY_TO_NAME: ""
+      GRYT_SMTP_USER: ""
+      GRYT_SMTP_PASS: ""
+    entrypoint: ["bash", "/bootstrap/import_realm.sh"]
+    volumes:
+      - ./bootstrap/import_realm.sh:/bootstrap/import_realm.sh:ro
+      - ./realm:/opt/keycloak/data/import-src:ro
+    networks:
+      - inferlo-identity
+    restart: "no"
+
+  # One-shot: ensures the master realm admin exists
+  # (kc.sh import creates the master realm as a side effect, so KC_BOOTSTRAP_ADMIN_* never fires).
+  keycloak-bootstrap-admin:
+    image: quay.io/keycloak/keycloak:26.5.3
+    container_name: inferlo-identity-keycloak-bootstrap-admin
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak-import:
+        condition: service_completed_successfully
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
+      KC_DB_USERNAME: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
+      KC_DB_PASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
+      GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
+      GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD}
+    entrypoint: ["bash", "/bootstrap/bootstrap_admin.sh"]
+    volumes:
+      - ./bootstrap/bootstrap_admin.sh:/bootstrap/bootstrap_admin.sh:ro
+    networks:
+      - inferlo-identity
+    restart: "no"
+
+  # One-shot: brute-force protection, password policy, failed sign-in log.
+  # Hits the live Keycloak admin API; idempotent, safe to re-run.
+  keycloak-security-policy:
+    image: curlimages/curl:8.11.1
+    container_name: inferlo-identity-keycloak-security-policy
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KC_URL: http://keycloak:8080
+      GRYT_REALM: ${GRYT_REALM:-inferlo}
+      GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
+      GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD}
+      GRYT_KC_FAILURE_FACTOR: "8"
+      GRYT_KC_WAIT_INCREMENT_SECONDS: "60"
+      GRYT_KC_MAX_WAIT_SECONDS: "900"
+      GRYT_KC_MAX_DELTA_SECONDS: "43200"
+      GRYT_KC_PASSWORD_POLICY: "length(12) and notUsername and notEmail"
+    entrypoint: ["sh", "/bootstrap/apply_security_policy.sh"]
+    volumes:
+      - ./bootstrap/apply_security_policy.sh:/bootstrap/apply_security_policy.sh:ro
+    networks:
+      - inferlo-identity
+    restart: "no"
+
+  # Gryt Identity Service: CA, подписывает сертификаты EC P-256 для устройств.
+  # Код: https://github.com/Gryt-chat/auth/tree/main/identity (AGPL-3.0)
+  identity:
+    build:
+      context: ./identity
+      dockerfile: Dockerfile
+    container_name: inferlo-identity-service
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      GRYT_OIDC_ISSUER: ${GRYT_OIDC_ISSUER:-https://auth.inferlo.xyz/realms/inferlo}
+      GRYT_IDENTITY_ORIGIN: ${GRYT_IDENTITY_ORIGIN:-https://id.inferlo.xyz}
+      GRYT_IDENTITY_DATA_DIR: /app/data
+      GRYT_CERT_LIFETIME_DAYS: "30"
+      # learn: records each account's seed key; enforce: refuses new keys until linked
+      GRYT_ACCOUNT_KEY_GATE: "learn"
+    ports:
+      - "127.0.0.1:${GRYT_IDENTITY_PORT:-18081}:3000"
+    volumes:
+      - inferlo-identity-data:/app/data
+    networks:
+      - inferlo-identity
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Cron backups of Postgres (the Keycloak DB) — the only way to restore
+  # accounts after an accidental realm re-import. The dump is verified before it is renamed.
+  pg-backup:
+    image: postgres:16-alpine
+    container_name: inferlo-identity-pg-backup
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
+      PGUSER: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
+      PGPASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
+      BACKUP_RETAIN_DAYS: "30"
+      BACKUP_MIN_BYTES: "10000"
+      BACKUP_CRON: "0 */6 * * *"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        cat > /usr/local/bin/pg-backup.sh <<'SCRIPT'
+        #!/bin/sh
+        # Dump uncompressed first (we check pg_dump's exit code, not gzip's),
+        # then verify size and gzip integrity, and only then rename into place.
+        # Pruning old files happens only after a verified dump from this run.
+        set -eu
+        ts=$$(date -u +%Y%m%dT%H%M%SZ)
+        final="/backups/keycloak-$${ts}.sql.gz"
+        raw="/backups/.keycloak-$${ts}.sql"
+        part="$${final}.part"
+        trap 'rm -f "$${raw}" "$${part}"' EXIT
+        echo "[pg-backup] $$(date -u +%FT%TZ) Creating $${final}"
+        if ! pg_dump > "$${raw}"; then
+          echo "[pg-backup] FAILED: pg_dump exited non-zero. Existing backups left alone." >&2
+          exit 1
+        fi
+        size=$$(wc -c < "$${raw}" | tr -d ' ')
+        if [ "$${size}" -lt "$${BACKUP_MIN_BYTES}" ]; then
+          echo "[pg-backup] FAILED: dump is $${size} bytes, under the $${BACKUP_MIN_BYTES} floor. Existing backups left alone." >&2
+          exit 1
+        fi
+        gzip -c "$${raw}" > "$${part}"
+        if ! gzip -t "$${part}"; then
+          echo "[pg-backup] FAILED: the archive does not decompress. Existing backups left alone." >&2
+          exit 1
+        fi
+        mv "$${part}" "$${final}"
+        echo "[pg-backup] Done ($$(du -h "$${final}" | cut -f1), from $${size} bytes)"
+        find /backups -name 'keycloak-*.sql.gz' -mtime +"$${BACKUP_RETAIN_DAYS}" -delete -print \
+          | while read f; do echo "[pg-backup] Pruned $f"; done
+        SCRIPT
+        chmod +x /usr/local/bin/pg-backup.sh
+        /usr/local/bin/pg-backup.sh
+        echo "$${BACKUP_CRON} /usr/local/bin/pg-backup.sh >> /proc/1/fd/1 2>&1" | crontab -
+        echo "[pg-backup] Scheduled ($${BACKUP_CRON}). Waiting..."
+        exec crond -f -l 6
+    volumes:
+      - ./backups:/backups
+    networks:
+      - inferlo-identity
+    restart: unless-stopped
+
+networks:
+  inferlo-identity:
+    name: inferlo-identity
+
+volumes:
+  inferlo-identity-postgres-data:
+  inferlo-identity-data:
