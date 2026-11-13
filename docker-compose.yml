@@ -22,6 +22,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.5.3
@@ -53,6 +58,7 @@ services:
       KC_HTTP_PORT: "8080"
 
       KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
       KC_HTTP_MANAGEMENT_SCHEME: "http"
 
@@ -61,9 +67,19 @@ services:
     command: ["start"]
     ports:
       - "127.0.0.1:${GRYT_KEYCLOAK_PORT:-18080}:8080"
+    volumes:
+      # In-app device pairing (POST /realms/gryt/gryt-pairing/approve). Build it with
+      # keycloak-pairing/build.sh first: a missing jar becomes a directory here, and
+      # Keycloak then refuses to start. scripts/preflight.sh checks for it.
+      - ./keycloak-pairing/dist/gryt-pairing.jar:/opt/keycloak/providers/gryt-pairing.jar:ro
     networks:
       - inferlo-identity
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
     healthcheck:
       test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"]
       interval: 30s
@@ -86,14 +102,16 @@ services:
       KC_DB_USERNAME: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
       KC_DB_PASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
       GRYT_IMPORT_REALM: ${GRYT_IMPORT_REALM:-0}
-      GRYT_SMTP_HOST: ""
-      GRYT_SMTP_PORT: ""
-      GRYT_SMTP_FROM: ""
-      GRYT_SMTP_FROM_NAME: ""
-      GRYT_SMTP_REPLY_TO: ""
-      GRYT_SMTP_REPLY_TO_NAME: ""
-      GRYT_SMTP_USER: ""
-      GRYT_SMTP_PASS: ""
+      # SMTP is substituted into realm/gryt-realm.json at import time (import_realm.sh).
+      # The production SMTP service is not selected yet; leave empty until then.
+      GRYT_SMTP_HOST: ${GRYT_SMTP_HOST:-}
+      GRYT_SMTP_PORT: ${GRYT_SMTP_PORT:-}
+      GRYT_SMTP_FROM: ${GRYT_SMTP_FROM:-}
+      GRYT_SMTP_FROM_NAME: ${GRYT_SMTP_FROM_NAME:-}
+      GRYT_SMTP_REPLY_TO: ${GRYT_SMTP_REPLY_TO:-}
+      GRYT_SMTP_REPLY_TO_NAME: ${GRYT_SMTP_REPLY_TO_NAME:-}
+      GRYT_SMTP_USER: ${GRYT_SMTP_USER:-}
+      GRYT_SMTP_PASS: ${GRYT_SMTP_PASS:-}
     entrypoint: ["bash", "/bootstrap/import_realm.sh"]
     volumes:
       - ./bootstrap/import_realm.sh:/bootstrap/import_realm.sh:ro
@@ -126,6 +144,11 @@ services:
     networks:
       - inferlo-identity
     restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
 
   # One-shot: brute-force protection, password policy, failed sign-in log.
   # Hits the live Keycloak admin API; idempotent, safe to re-run.
@@ -137,23 +160,56 @@ services:
         condition: service_healthy
     environment:
       KC_URL: http://keycloak:8080
-      GRYT_REALM: ${GRYT_REALM:-inferlo}
+      GRYT_REALM: ${GRYT_REALM:-gryt}
       GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
       GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD}
-      GRYT_KC_FAILURE_FACTOR: "8"
-      GRYT_KC_WAIT_INCREMENT_SECONDS: "60"
-      GRYT_KC_MAX_WAIT_SECONDS: "900"
-      GRYT_KC_MAX_DELTA_SECONDS: "43200"
-      GRYT_KC_PASSWORD_POLICY: "length(12) and notUsername and notEmail"
+      GRYT_KC_FAILURE_FACTOR: ${GRYT_KC_FAILURE_FACTOR:-8}
+      GRYT_KC_WAIT_INCREMENT_SECONDS: ${GRYT_KC_WAIT_INCREMENT_SECONDS:-60}
+      GRYT_KC_MAX_WAIT_SECONDS: ${GRYT_KC_MAX_WAIT_SECONDS:-900}
+      GRYT_KC_MAX_DELTA_SECONDS: ${GRYT_KC_MAX_DELTA_SECONDS:-43200}
+      GRYT_KC_PASSWORD_POLICY: ${GRYT_KC_PASSWORD_POLICY:-length(12) and notUsername and notEmail}
     entrypoint: ["sh", "/bootstrap/apply_security_policy.sh"]
     volumes:
       - ./bootstrap/apply_security_policy.sh:/bootstrap/apply_security_policy.sh:ro
     networks:
       - inferlo-identity
     restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
 
-  # Gryt Identity Service: CA, подписывает сертификаты EC P-256 для устройств.
-  # Код: https://github.com/Gryt-chat/auth/tree/main/identity (AGPL-3.0)
+  # One-shot: turns on the OAuth device grant for gryt-web (in-app device linking).
+  # Read-modify-write on the client, safe to run twice. The realm import already ships
+  # the device-grant attributes, so this is the post-import guarantee (and the upgrade
+  # path for realms imported before they existed). Run it explicitly after any import:
+  #   docker compose run --rm --no-deps keycloak-device-grant
+  keycloak-device-grant:
+    image: python:3.13-alpine
+    container_name: inferlo-identity-keycloak-device-grant
+    profiles: ["device-grant"]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KC_URL: http://keycloak:8080
+      GRYT_REALM: ${GRYT_REALM:-gryt}
+      GRYT_CLIENT_ID: ${GRYT_OIDC_CLIENT_ID:-gryt-web}
+      GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
+      GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD}
+      GRYT_DEVICE_CODE_LIFESPAN: ${GRYT_DEVICE_CODE_LIFESPAN:-300}
+      GRYT_DEVICE_POLLING_INTERVAL: ${GRYT_DEVICE_POLLING_INTERVAL:-5}
+    entrypoint: ["python", "/bootstrap/enable_device_grant.py"]
+    volumes:
+      - ./bootstrap/enable_device_grant.py:/bootstrap/enable_device_grant.py:ro
+    networks:
+      - inferlo-identity
+    restart: "no"
+
+  # Gryt Identity Service: CA, signs EC P-256 device certificates for users.
+  # Source vendored from https://github.com/Gryt-chat/auth/tree/main/identity (AGPL-3.0,
+  # see identity/VENDOR.md for the pinned commit).
   identity:
     build:
       context: ./identity
@@ -164,12 +220,16 @@ services:
         condition: service_healthy
     environment:
       PORT: "3000"
-      GRYT_OIDC_ISSUER: ${GRYT_OIDC_ISSUER:-https://auth.inferlo.xyz/realms/inferlo}
+      GRYT_OIDC_ISSUER: ${GRYT_OIDC_ISSUER:-https://auth.inferlo.xyz/realms/gryt}
       GRYT_IDENTITY_ORIGIN: ${GRYT_IDENTITY_ORIGIN:-https://id.inferlo.xyz}
+      GRYT_CA_PRIVATE_KEY_FILE: ${GRYT_CA_PRIVATE_KEY_FILE:-}
       GRYT_IDENTITY_DATA_DIR: /app/data
-      GRYT_CERT_LIFETIME_DAYS: "30"
+      GRYT_CERT_LIFETIME_DAYS: ${GRYT_CERT_LIFETIME_DAYS:-30}
       # learn: records each account's seed key; enforce: refuses new keys until linked
-      GRYT_ACCOUNT_KEY_GATE: "learn"
+      GRYT_ACCOUNT_KEY_GATE: ${GRYT_ACCOUNT_KEY_GATE:-learn}
+      # Only these addresses may set CF-Connecting-IP (pairing rate limiting).
+      # Caddy runs with host networking, so its traffic arrives from 127.0.0.1.
+      GRYT_PAIRING_TRUSTED_PROXIES: ${GRYT_PAIRING_TRUSTED_PROXIES:-127.0.0.1}
     ports:
       - "127.0.0.1:${GRYT_IDENTITY_PORT:-18081}:3000"
     volumes:
@@ -177,6 +237,11 @@ services:
     networks:
       - inferlo-identity
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
       interval: 30s
@@ -233,7 +298,7 @@ services:
         mv "$${part}" "$${final}"
         echo "[pg-backup] Done ($$(du -h "$${final}" | cut -f1), from $${size} bytes)"
         find /backups -name 'keycloak-*.sql.gz' -mtime +"$${BACKUP_RETAIN_DAYS}" -delete -print \
-          | while read f; do echo "[pg-backup] Pruned $f"; done
+          | while read f; do echo "[pg-backup] Pruned $${f}"; done
         SCRIPT
         chmod +x /usr/local/bin/pg-backup.sh
         /usr/local/bin/pg-backup.sh
@@ -241,10 +306,18 @@ services:
         echo "[pg-backup] Scheduled ($${BACKUP_CRON}). Waiting..."
         exec crond -f -l 6
     volumes:
-      - ./backups:/backups
+      # Defaults to beside the compose file. Point it at a mount from somewhere
+      # else and the dumps stop sharing a filesystem with the database they exist
+      # to restore — which is the failure that matters here.
+      - ${GRYT_AUTH_BACKUP_DIR:-./backups}:/backups
     networks:
       - inferlo-identity
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
 
 networks:
   inferlo-identity:

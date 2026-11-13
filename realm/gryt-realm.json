@@ -1,18 +1,32 @@
 {
-  "realm": "inferlo",
+  "realm": "gryt",
   "enabled": true,
-  "displayName": "Inferlo Gaming",
+  "displayName": "Inferlo",
   "registrationAllowed": false,
-  "resetPasswordAllowed": false,
+  "resetPasswordAllowed": true,
   "loginWithEmailAllowed": true,
   "registrationEmailAsUsername": true,
   "duplicateEmailsAllowed": false,
   "rememberMe": true,
-  "verifyEmail": false,
+  "verifyEmail": true,
   "accountTheme": "base",
   "loginTheme": "base",
   "emailTheme": "base",
-  "smtpServer": {},
+  "smtpServer": {
+    "host": "__GRYT_SMTP_HOST__",
+    "port": "__GRYT_SMTP_PORT__",
+    "from": "__GRYT_SMTP_FROM__",
+    "fromDisplayName": "__GRYT_SMTP_FROM_NAME__",
+    "replyTo": "__GRYT_SMTP_REPLY_TO__",
+    "replyToDisplayName": "__GRYT_SMTP_REPLY_TO_NAME__",
+    "envelopeFrom": "",
+    "starttls": "true",
+    "ssl": "false",
+    "auth": "true",
+    "user": "__GRYT_SMTP_USER__",
+    "password": "__GRYT_SMTP_PASS__",
+    "debug": "false"
+  },
   "ssoSessionIdleTimeout": 604800,
   "ssoSessionMaxLifespan": 2592000,
   "offlineSessionIdleTimeout": 2592000,
@@ -164,7 +178,7 @@
   "clients": [
     {
       "clientId": "gryt-web",
-      "name": "Inferlo Gaming Client",
+      "name": "Inferlo Client",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
@@ -175,17 +189,22 @@
       "frontchannelLogout": true,
       "redirectUris": [
         "gryt://auth/callback",
+        "https://app.inferlo.xyz/*",
         "http://localhost:3666/*",
         "http://localhost:3667/*",
         "http://127.0.0.1:*"
       ],
       "webOrigins": [
+        "https://app.inferlo.xyz",
         "http://localhost:3666",
         "http://localhost:3667",
         "http://127.0.0.1:*"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "true",
+        "oauth2.device.code.lifespan": "300",
+        "oauth2.device.polling.interval": "5"
       }
     }
   ]
