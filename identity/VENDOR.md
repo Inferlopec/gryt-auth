@@ -1,6 +1,6 @@
 # Vendors: Gryt Identity Service (AGPL-3.0)
 
-This directory is vendored, unmodified, from the upstream Gryt authentication
+This directory is vendored with the local patches below, from the upstream Gryt authentication
 repository. The Identity Service is a certificate authority that binds
 Keycloak users to EC P-256 device keys and issues signed JWT certificates.
 
@@ -10,4 +10,14 @@ Keycloak users to EC P-256 device keys and issues signed JWT certificates.
 
 To upgrade: re-clone the upstream at a new commit, replace this directory,
 rebuild the image (`docker compose build identity`), and re-run the test suite.
-Record the new commit SHA here and in `docs/upstream-revisions.md`.
+Record the new commit SHA here and in `docs/development/upstream-revisions.md`.
+
+## Local patches
+
+- Validate the gryt-web audience and required expiry/issued-at claims.
+- Load the CA before serving health; refuse missing/corrupt configured keys.
+- Only explicit initialization may create an absent CA key, with exclusive creation.
+- Pin the Node base digest and frozen installs; add a separate test-runner stage.
+
+Keep these changes when upgrading the pinned source. The certificate and pairing
+wire formats remain upstream-compatible.

@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # Restore the Keycloak database from a verified pg dump.
 #
 # This is the account-recovery path after an accidental realm re-import or a
@@ -14,12 +14,12 @@
 #
 # Usage: scripts/restore_postgres.sh backups/keycloak-<timestamp>.sql.gz
 # Ask for confirmation first: type YES when prompted.
-set -eu
+set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${DIR}"
 # shellcheck disable=SC1091
-. ./.env
+[ ! -f "${GRYT_ENV_FILE:-.env}" ] || . "${GRYT_ENV_FILE:-.env}"
 
 DUMP="${1:?usage: restore_postgres.sh <path-to-keycloak-dump.sql.gz>}"
 DB="${GRYT_AUTH_POSTGRES_DB:-keycloak}"
@@ -33,7 +33,11 @@ if ! gzip -t "${DUMP}"; then
   echo "ERROR: ${DUMP} does not decompress. Do not restore from it." >&2
   exit 1
 fi
-size="$(gunzip -c "${DUMP}" | wc -c | tr -d ' ')"
+RAW="$(mktemp)"
+trap 'rm -f "${RAW}"' EXIT
+umask 077
+gunzip -c "${DUMP}" > "${RAW}"
+size="$(wc -c < "${RAW}" | tr -d ' ')"
 if [ "${size}" -lt 10000 ]; then
   echo "ERROR: ${DUMP} decompresses to only ${size} bytes — it looks truncated." >&2
   exit 1
@@ -49,22 +53,13 @@ echo "[restore] Stopping keycloak..."
 docker compose stop keycloak
 
 echo "[restore] Restoring ${DB} from ${DUMP} (verified, ${size} bytes)..."
-docker compose exec -T -e PGUSER="${PGUSER}" -e PGDATABASE="${DB}" postgres sh -c \
-  "psql -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS ${DB} WITH (FORCE);' && psql -v ON_ERROR_STOP=1 -c 'CREATE DATABASE ${DB};'"
-docker compose exec -T -e PGUSER="${PGUSER}" -e PGDATABASE="${DB}" postgres \
-  sh -c "gunzip -c /dev/stdin | psql -v ON_ERROR_STOP=1" < "${DUMP}"
+docker compose exec -T -e PGUSER="${PGUSER}" postgres \
+  dropdb --maintenance-db=postgres --if-exists --force -- "${DB}"
+docker compose exec -T -e PGUSER="${PGUSER}" postgres \
+  createdb --maintenance-db=postgres --owner="${PGUSER}" -- "${DB}"
+docker compose exec -T -e PGUSER="${PGUSER}" postgres \
+  psql -q --dbname="${DB}" -v ON_ERROR_STOP=1 --single-transaction < "${RAW}"
 
 echo "[restore] Starting keycloak..."
-docker compose up -d keycloak
-echo "[restore] Waiting for keycloak to become healthy (up to 5 minutes)..."
-for i in $(seq 1 60); do
-  if docker compose ps keycloak | grep -q healthy; then
-    echo "[restore] keycloak is healthy. Restore complete."
-    echo "[restore] Next: verify a known user can log in, then re-apply the security policy if you re-imported the realm:"
-    echo "           docker compose run --rm --no-deps keycloak-security-policy"
-    exit 0
-  fi
-  sleep 5
-done
-echo "[restore] ERROR: keycloak did not become healthy in 5 minutes. Check: docker compose logs keycloak" >&2
-exit 1
+docker compose up -d --no-deps --wait --wait-timeout 300 keycloak
+echo "[restore] Complete. Verify a known user and the CA JWKS before reopening traffic."

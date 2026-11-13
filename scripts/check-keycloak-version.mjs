@@ -4,17 +4,17 @@
 import { readFileSync } from "node:fs";
 
 const pom = readFileSync("keycloak-pairing/pom.xml", "utf8");
-const compose = readFileSync("docker-compose.keycloak.yml", "utf8");
+const compose = readFileSync("docker-compose.yml", "utf8");
 
 const built = pom.match(/<keycloak\.version>([^<]+)<\/keycloak\.version>/)?.[1];
-const images = [...compose.matchAll(/quay\.io\/keycloak\/keycloak:(\S+)/g)].map((m) => m[1]);
+const images = [...compose.matchAll(/quay\.io\/keycloak\/keycloak:([^\s"\']+)/g)].map((m) => m[1].split("@")[0]);
 
 if (!built) {
   console.error("keycloak-pairing/pom.xml has no <keycloak.version>");
   process.exit(1);
 }
 if (images.length === 0) {
-  console.error("docker-compose.keycloak.yml names no quay.io/keycloak/keycloak image");
+  console.error("docker-compose.yml names no quay.io/keycloak/keycloak image");
   process.exit(1);
 }
 

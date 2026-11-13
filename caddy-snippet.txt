@@ -1,22 +1,13 @@
-# Caddy — blocks for /opt/caddy/Caddyfile (same-host layout: Caddy and the
-# identity stack on the same machine, Caddy with host networking).
-# Insert INSIDE the existing Caddyfile (at the top-level site block level),
-# after taking a backup: cp /opt/caddy/Caddyfile /opt/caddy/Caddyfile.bak-$(date +%F)
-# Then: docker exec inferlo-caddy caddy reload --config /etc/caddy/Caddyfile
-#
-# The identity stack listens on 127.0.0.1 only (see docker-compose.yml),
-# so these services are not reachable externally even without these rules.
-# This file is a snippet for the operator to apply; it is not applied automatically.
-
+# Operator proposal only. Same host, Caddy with host networking.
+# Determine the actual source address seen inside Docker and set trusted proxies.
 auth.inferlo.xyz {
     reverse_proxy 127.0.0.1:18080
 }
-
 id.inferlo.xyz {
-    reverse_proxy 127.0.0.1:18081
+    reverse_proxy 127.0.0.1:18081 {
+        # This header is consumed by the upstream pairing relay. Overwrite visitor input.
+        header_up CF-Connecting-IP {remote_host}
+        header_up -CF-IPCountry
+        header_up -CF-IPCity
+    }
 }
-
-# Verification after reload:
-#   curl -fsS https://auth.inferlo.xyz/realms/gryt/.well-known/openid-configuration | head
-#   curl -fsS https://id.inferlo.xyz/health
-#   curl -fsS https://id.inferlo.xyz/.well-known/jwks.json

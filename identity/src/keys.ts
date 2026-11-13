@@ -41,7 +41,7 @@ async function loadOrGenerateKey(): Promise<{
       cachedKid = kid;
       return { privateKey, publicJwk: pub, kid };
     } catch (e) {
-      console.error(`Failed to load CA key from ${keyPath}, generating new keypair:`, e);
+      throw new Error(`Cannot load configured CA key ${keyPath}; refusing to replace it`, { cause: e });
     }
   }
 
@@ -62,7 +62,9 @@ async function loadOrGenerateKey(): Promise<{
     console.log(`Loaded existing CA key from ${autoKeyPath}`);
     return { privateKey, publicJwk: pub, kid };
   } catch (e) {
-    console.warn(`Failed to load CA key from ${autoKeyPath}:`, e);
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT" || process.env.GRYT_CA_ALLOW_GENERATE !== "1") {
+      throw new Error(`Cannot load CA key ${autoKeyPath}; run explicit initialization for a new installation or restore the original key`, { cause: e });
+    }
   }
 
   console.log("Generating new ECDSA P-256 CA keypair...");
@@ -79,7 +81,7 @@ async function loadOrGenerateKey(): Promise<{
   const pem = await exportPKCS8(privateKey);
 
   await mkdir(dirname(autoKeyPath), { recursive: true });
-  await writeFile(autoKeyPath, pem, { mode: 0o600 });
+  await writeFile(autoKeyPath, pem, { mode: 0o600, flag: "wx" });
   console.log(`Saved new CA key to ${autoKeyPath}`);
 
   const pub: JWK = { ...pubJwk, alg: ALG, use: "sig", kid };

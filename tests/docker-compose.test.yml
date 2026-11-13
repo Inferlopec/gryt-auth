@@ -1,0 +1,155 @@
+# Isolated fixtures. No production .env, ports, keys or databases are used.
+name: inferlo-identity-test
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:f377d590e5474681d4d7838635031a2b50647923b7abfa803ce9b5ff35d5c663
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: test-only
+    volumes: [test-postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U keycloak -d keycloak']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.3@sha256:5a236ae4dd8ece77490115bace15a11a4d15e9cbcf58a490b95a7da2cd71d32a
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: test-only
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: test-only
+      KC_HOSTNAME: http://keycloak:8080
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HTTP_ENABLED: 'true'
+      KC_HEALTH_ENABLED: 'true'
+      KC_HTTP_MANAGEMENT_SCHEME: http
+    command: [start]
+    ports: ['127.0.0.1:18280:8080']
+    volumes:
+      - ../keycloak-pairing/dist/gryt-pairing.jar:/opt/keycloak/providers/gryt-pairing.jar:ro
+    healthcheck:
+      test: [CMD-SHELL, "{ printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&0; grep -q '200 OK'; } 0<>/dev/tcp/127.0.0.1/9000"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  keycloak-import:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: [tools]
+    environment: &admin
+      KC_URL: http://keycloak:8080
+      GRYT_REALM: gryt
+      GRYT_KEYCLOAK_ADMIN_USERNAME: admin
+      GRYT_KEYCLOAK_ADMIN_PASSWORD: test-only
+    entrypoint: [python, /bootstrap/initialize_realm.py]
+    volumes: &bootstrap
+      - ../bootstrap:/bootstrap:ro
+      - ../realm:/realm:ro
+
+  keycloak-smtp:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: [tools]
+    environment: *admin
+    entrypoint: [python, /bootstrap/configure_smtp.py]
+    volumes: *bootstrap
+
+  keycloak-client-policy:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: [tools]
+    environment: *admin
+    entrypoint: [python, /bootstrap/configure_client.py]
+    volumes: *bootstrap
+
+  keycloak-device-grant:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: [tools]
+    environment: *admin
+    entrypoint: [python, /bootstrap/enable_device_grant.py]
+    volumes: *bootstrap
+
+  keycloak-security-policy:
+    image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+    profiles: [tools]
+    environment:
+      <<: *admin
+      GRYT_KC_PASSWORD_POLICY: length(12) and notUsername and notEmail
+    entrypoint: [sh, /bootstrap/apply_security_policy.sh]
+    volumes: *bootstrap
+
+  identity:
+    image: inferlo-identity-test-ca
+    build: ../identity
+    environment: &identity
+      PORT: '3000'
+      GRYT_OIDC_ISSUER: http://keycloak:8080/realms/gryt
+      GRYT_OIDC_AUDIENCE: gryt-web
+      GRYT_IDENTITY_ORIGIN: http://identity:3000
+      GRYT_IDENTITY_DATA_DIR: /app/data
+      GRYT_CERT_LIFETIME_DAYS: '30'
+      GRYT_ACCOUNT_KEY_GATE: learn
+    ports: ['127.0.0.1:18281:3000']
+    volumes: [test-ca:/app/data]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  other-identity:
+    image: inferlo-identity-test-ca
+    environment:
+      <<: *identity
+      GRYT_IDENTITY_ORIGIN: http://other-identity:3000
+    volumes: [test-other-ca:/app/data]
+
+  test-runner:
+    image: inferlo-identity-test-runner
+    build:
+      context: ../identity
+      target: test-runner
+    profiles: [tools]
+    environment:
+      KC_URL: http://keycloak:8080
+      ID_URL: http://identity:3000
+      GRYT_TEST_SERVERS: ${GRYT_TEST_SERVERS:-}
+    volumes:
+      - .:/app/integration:ro
+      - ../realm:/realm:ro
+      - test-ca:/ca-data:ro
+      - test-artifacts:/artifacts
+    entrypoint: [node, --test, --test-concurrency=1]
+    command: [/app/integration/integration.test.mjs]
+
+  gryt-a: &gryt
+    image: inferlo-identity-test-gryt:f537aa5e
+    build:
+      context: https://github.com/Gryt-chat/server.git#f537aa5e3d8a4bdba3c75e34b6dbfece2d727f42
+    profiles: [gryt]
+    environment:
+      HOST: 0.0.0.0
+      PORT: '5000'
+      JWT_SECRET: isolated-test-signing-secret-not-for-production
+      DATA_DIR: /data
+      GRYT_IDENTITY_TIERS: account,local
+      GRYT_TRUSTED_CERT_ISSUERS: https://id.gryt.chat,http://identity:3000,http://other-identity:3000
+    volumes: [test-gryt-a:/data]
+  gryt-b:
+    <<: *gryt
+    volumes: [test-gryt-b:/data]
+
+volumes:
+  test-postgres:
+  test-ca:
+  test-other-ca:
+  test-gryt-a:
+  test-gryt-b:
+  test-artifacts:

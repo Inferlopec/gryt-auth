@@ -1,18 +1,21 @@
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS builder
 WORKDIR /app
 
 COPY package.json yarn.lock ./
-RUN yarn install --ignore-engines
+RUN yarn install --frozen-lockfile --ignore-engines
 
 COPY . .
 RUN yarn build
 
-FROM node:22-alpine AS deps
+FROM builder AS test-runner
+RUN yarn add --dev --ignore-engines socket.io-client@4.8.1
+
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS deps
 WORKDIR /app
 COPY package.json yarn.lock ./
-RUN yarn install --production --ignore-engines
+RUN yarn install --frozen-lockfile --production --ignore-engines
 
-FROM node:22-alpine
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
 
 RUN addgroup -g 1001 -S gryt \
   && adduser -S gryt -u 1001 -G gryt -h /app -s /sbin/nologin

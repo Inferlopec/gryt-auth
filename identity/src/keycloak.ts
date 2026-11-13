@@ -31,7 +31,10 @@ function parseStringClaim(payload: JWTPayload, key: string): string | undefined 
 
 export async function verifyKeycloakToken(token: string): Promise<VerifiedUser> {
   const issuer = getIssuer();
-  const { payload } = await jwtVerify(token, getJwks(), { issuer });
+  const audience = process.env.GRYT_OIDC_AUDIENCE || "gryt-web";
+  const { payload } = await jwtVerify(token, getJwks(), {
+    issuer, audience, requiredClaims: ["sub", "exp", "iat"],
+  });
 
   if (!payload.sub || typeof payload.sub !== "string") {
     throw new Error("Token missing sub claim");

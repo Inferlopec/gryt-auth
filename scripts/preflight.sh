@@ -40,7 +40,7 @@ done
 echo "== Realm import state =="
 case "${GRYT_IMPORT_REALM:-0}" in
   0) ok "GRYT_IMPORT_REALM=0 (normal post-initialization state)" ;;
-  1) warn "GRYT_IMPORT_REALM=1 — this will DELETE the realm and all users on next up. If the realm already has users, use scripts/reimport_realm.sh instead." ;;
+  1) fail "GRYT_IMPORT_REALM=1 is retired. Set 0 and use scripts/initialize.sh (safe for existing accounts)." ;;
   *) fail "GRYT_IMPORT_REALM must be 0 or 1, got '${GRYT_IMPORT_REALM}'" ;;
 esac
 
@@ -51,7 +51,7 @@ if [ -f "${JAR}" ] && [ -s "${JAR}" ]; then
 elif [ -d "${JAR}" ]; then
   fail "${JAR} is a directory (a missing bind-mount target). Remove it and run keycloak-pairing/build.sh — Keycloak will not start with it missing."
 else
-  warn "${JAR} missing. Run keycloak-pairing/build.sh (needs Docker). Keycloak will not start until it exists."
+  fail "${JAR} missing. Run keycloak-pairing/build.sh (needs Docker). Keycloak will not start until it exists."
 fi
 
 echo "== Keycloak version coupling =="
@@ -63,7 +63,7 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   pom="$(sed -n 's|.*<keycloak\.version>\([^<]*\)</keycloak\.version>.*|\1|p' keycloak-pairing/pom.xml | head -1)"
-  imgs="$(grep -o 'quay\.io/keycloak/keycloak:[^"]*' docker-compose.yml | sort -u | sed 's|.*:||')"
+  imgs="$(grep -o 'quay\.io/keycloak/keycloak:[^" ]*' docker-compose.yml | sort -u | sed 's|@.*||;s|.*:||')"
   if [ -n "${pom}" ] && [ "${imgs}" = "${pom}" ]; then
     ok "pom.xml and compose image tags agree (${pom})"
   else
@@ -83,10 +83,10 @@ else
   warn "device grant attributes missing from realm file (the keycloak-device-grant one-shot still applies them)"
 fi
 if grep -q '__GRYT_SMTP_' realm/gryt-realm.json; then
-  if [ -n "${GRYT_SMTP_USER:-}" ] && [ -n "${GRYT_SMTP_PASS:-}" ]; then
-    ok "SMTP placeholders will be substituted at import"
+  if [ -n "${GRYT_SMTP_HOST:-}" ] && [ -n "${GRYT_SMTP_FROM:-}" ]; then
+    ok "SMTP settings available for explicit initialization / keycloak-smtp job"
   else
-    warn "SMTP is not configured — email verification and password reset will not work until GRYT_SMTP_* is set and the realm re-imported"
+    warn "SMTP is not configured — configure SMTP with the keycloak-smtp job; never replace a realm to change mail settings"
   fi
 fi
 

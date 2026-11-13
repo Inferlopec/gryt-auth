@@ -1,11 +1,32 @@
-# Secrets — never commit
+# Local credentials and environment overrides; keep distributable examples.
 .env
+.env.*
+!.env.example
+!.env.*.example
+secrets/
+.secrets/
+*.key
+ca-key*.pem
+
+# Local cloud credentials and tool state. AGENTS.md and shared skills stay trackable.
+/.aws/
+/.codex/
 
 # Backups (pg dumps, CA key tarballs)
 backups/
 *.sql.gz
-*.sql
+*.dump
 ca-key-*.tar.gz
+
+# Local runtime databases and data, not versioned schema/migration SQL.
+/data/
+identity/data/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
 
 # Build artifacts
 identity/node_modules/
@@ -13,7 +34,16 @@ identity/dist/
 keycloak-pairing/dist/
 keycloak-pairing/target/
 node_modules/
+keycloak-pairing/dist.tmp.*/
+
+# Generated operator packages; release contents are selected by an explicit manifest.
+/dist/
+/release-artifacts/
 
 # Misc
 *.log
 .DS_Store
+
+# Python bootstrap validation caches
+__pycache__/
+*.pyc

@@ -6,7 +6,7 @@ name: inferlo-identity
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:f377d590e5474681d4d7838635031a2b50647923b7abfa803ce9b5ff35d5c663
     container_name: inferlo-identity-postgres
     environment:
       POSTGRES_DB: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
@@ -29,15 +29,11 @@ services:
           cpus: "1.0"
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.5.3
+    image: quay.io/keycloak/keycloak:26.5.3@sha256:5a236ae4dd8ece77490115bace15a11a4d15e9cbcf58a490b95a7da2cd71d32a
     container_name: inferlo-identity-keycloak
     depends_on:
       postgres:
         condition: service_healthy
-      keycloak-import:
-        condition: service_completed_successfully
-      keycloak-bootstrap-admin:
-        condition: service_completed_successfully
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD:?set in .env}
@@ -53,6 +49,7 @@ services:
       KC_HOSTNAME_ADMIN: ${GRYT_KEYCLOAK_HOSTNAME_ADMIN_URL:-https://auth.inferlo.xyz}
       KC_HOSTNAME_STRICT: "true"
       KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: ${GRYT_KEYCLOAK_TRUSTED_PROXIES:-127.0.0.1}
 
       KC_HTTP_ENABLED: "true"
       KC_HTTP_PORT: "8080"
@@ -81,80 +78,70 @@ services:
           memory: 2g
           cpus: "2.0"
     healthcheck:
-      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"]
+      test: ["CMD-SHELL", "{ printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep -q '200 OK'; } 0<>/dev/tcp/localhost/9000"]
       interval: 30s
       timeout: 10s
       retries: 10
       start_period: 120s
 
-  # One-shot: realm import (only when GRYT_IMPORT_REALM=1; skipped by default).
-  # The script refuses to run while keycloak is up (protection against --override).
+  # Explicit initialization only. The Admin API creates a missing realm;
+  # an existing realm is never replaced during normal startup.
   keycloak-import:
-    image: quay.io/keycloak/keycloak:26.5.3
-    container_name: inferlo-identity-keycloak-import
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: ["initialize"]
     depends_on:
-      postgres:
+      keycloak:
         condition: service_healthy
-    environment:
-      KC_DB: postgres
-      KC_DB_URL_HOST: postgres
-      KC_DB_URL_DATABASE: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
-      KC_DB_USERNAME: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
-      KC_DB_PASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
-      GRYT_IMPORT_REALM: ${GRYT_IMPORT_REALM:-0}
-      # SMTP is substituted into realm/gryt-realm.json at import time (import_realm.sh).
-      # The production SMTP service is not selected yet; leave empty until then.
+    environment: &admin-environment
+      KC_URL: http://keycloak:8080
+      GRYT_REALM: ${GRYT_REALM:-gryt}
+      GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
+      GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD:?set in .env}
       GRYT_SMTP_HOST: ${GRYT_SMTP_HOST:-}
-      GRYT_SMTP_PORT: ${GRYT_SMTP_PORT:-}
+      GRYT_SMTP_PORT: ${GRYT_SMTP_PORT:-587}
       GRYT_SMTP_FROM: ${GRYT_SMTP_FROM:-}
-      GRYT_SMTP_FROM_NAME: ${GRYT_SMTP_FROM_NAME:-}
+      GRYT_SMTP_FROM_NAME: ${GRYT_SMTP_FROM_NAME:-Inferlo}
       GRYT_SMTP_REPLY_TO: ${GRYT_SMTP_REPLY_TO:-}
       GRYT_SMTP_REPLY_TO_NAME: ${GRYT_SMTP_REPLY_TO_NAME:-}
       GRYT_SMTP_USER: ${GRYT_SMTP_USER:-}
       GRYT_SMTP_PASS: ${GRYT_SMTP_PASS:-}
-    entrypoint: ["bash", "/bootstrap/import_realm.sh"]
-    volumes:
-      - ./bootstrap/import_realm.sh:/bootstrap/import_realm.sh:ro
-      - ./realm:/opt/keycloak/data/import-src:ro
-    networks:
-      - inferlo-identity
+    entrypoint: ["python", "/bootstrap/initialize_realm.py"]
+    volumes: &bootstrap-volumes
+      - ./bootstrap:/bootstrap:ro
+      - ./realm:/realm:ro
+    networks: [inferlo-identity]
     restart: "no"
-
-  # One-shot: ensures the master realm admin exists
-  # (kc.sh import creates the master realm as a side effect, so KC_BOOTSTRAP_ADMIN_* never fires).
-  keycloak-bootstrap-admin:
-    image: quay.io/keycloak/keycloak:26.5.3
-    container_name: inferlo-identity-keycloak-bootstrap-admin
-    depends_on:
-      postgres:
-        condition: service_healthy
-      keycloak-import:
-        condition: service_completed_successfully
-    environment:
-      KC_DB: postgres
-      KC_DB_URL_HOST: postgres
-      KC_DB_URL_DATABASE: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
-      KC_DB_USERNAME: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
-      KC_DB_PASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
-      GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
-      GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD}
-    entrypoint: ["bash", "/bootstrap/bootstrap_admin.sh"]
-    volumes:
-      - ./bootstrap/bootstrap_admin.sh:/bootstrap/bootstrap_admin.sh:ro
-    networks:
-      - inferlo-identity
-    restart: "no"
-    deploy:
+    deploy: &job-limits
       resources:
         limits:
-          memory: 512m
-          cpus: "1.0"
+          memory: 256m
+          cpus: "0.5"
+
+  keycloak-smtp:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: ["configure"]
+    environment: *admin-environment
+    entrypoint: ["python", "/bootstrap/configure_smtp.py"]
+    volumes: *bootstrap-volumes
+    networks: [inferlo-identity]
+    restart: "no"
+    deploy: *job-limits
+
+  keycloak-client-policy:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: ["configure"]
+    environment: *admin-environment
+    entrypoint: ["python", "/bootstrap/configure_client.py"]
+    volumes: *bootstrap-volumes
+    networks: [inferlo-identity]
+    restart: "no"
+    deploy: *job-limits
 
   # One-shot: brute-force protection, password policy, failed sign-in log.
   # Hits the live Keycloak admin API; idempotent, safe to re-run.
   keycloak-security-policy:
-    image: curlimages/curl:8.11.1
-    container_name: inferlo-identity-keycloak-security-policy
+    image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+    profiles: ["configure"]
     depends_on:
       keycloak:
         condition: service_healthy
@@ -186,7 +173,7 @@ services:
   # path for realms imported before they existed). Run it explicitly after any import:
   #   docker compose run --rm --no-deps keycloak-device-grant
   keycloak-device-grant:
-    image: python:3.13-alpine
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
     container_name: inferlo-identity-keycloak-device-grant
     profiles: ["device-grant"]
     depends_on:
@@ -206,6 +193,7 @@ services:
     networks:
       - inferlo-identity
     restart: "no"
+    deploy: *job-limits
 
   # Gryt Identity Service: CA, signs EC P-256 device certificates for users.
   # Source vendored from https://github.com/Gryt-chat/auth/tree/main/identity (AGPL-3.0,
@@ -221,6 +209,7 @@ services:
     environment:
       PORT: "3000"
       GRYT_OIDC_ISSUER: ${GRYT_OIDC_ISSUER:-https://auth.inferlo.xyz/realms/gryt}
+      GRYT_OIDC_AUDIENCE: ${GRYT_OIDC_AUDIENCE:-gryt-web}
       GRYT_IDENTITY_ORIGIN: ${GRYT_IDENTITY_ORIGIN:-https://id.inferlo.xyz}
       GRYT_CA_PRIVATE_KEY_FILE: ${GRYT_CA_PRIVATE_KEY_FILE:-}
       GRYT_IDENTITY_DATA_DIR: /app/data
@@ -228,8 +217,8 @@ services:
       # learn: records each account's seed key; enforce: refuses new keys until linked
       GRYT_ACCOUNT_KEY_GATE: ${GRYT_ACCOUNT_KEY_GATE:-learn}
       # Only these addresses may set CF-Connecting-IP (pairing rate limiting).
-      # Caddy runs with host networking, so its traffic arrives from 127.0.0.1.
-      GRYT_PAIRING_TRUSTED_PROXIES: ${GRYT_PAIRING_TRUSTED_PROXIES:-127.0.0.1}
+      # Set the actual source address seen inside Docker (often the bridge gateway).
+      GRYT_PAIRING_TRUSTED_PROXIES: ${GRYT_PAIRING_TRUSTED_PROXIES:-}
     ports:
       - "127.0.0.1:${GRYT_IDENTITY_PORT:-18081}:3000"
     volumes:
@@ -252,7 +241,7 @@ services:
   # Cron backups of Postgres (the Keycloak DB) — the only way to restore
   # accounts after an accidental realm re-import. The dump is verified before it is renamed.
   pg-backup:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:f377d590e5474681d4d7838635031a2b50647923b7abfa803ce9b5ff35d5c663
     container_name: inferlo-identity-pg-backup
     depends_on:
       postgres:
@@ -262,9 +251,9 @@ services:
       PGDATABASE: ${GRYT_AUTH_POSTGRES_DB:-keycloak}
       PGUSER: ${GRYT_AUTH_POSTGRES_USER:-keycloak}
       PGPASSWORD: ${GRYT_AUTH_POSTGRES_PASSWORD}
-      BACKUP_RETAIN_DAYS: "30"
+      BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-30}
       BACKUP_MIN_BYTES: "10000"
-      BACKUP_CRON: "0 */6 * * *"
+      BACKUP_CRON: ${BACKUP_CRON:-0 */6 * * *}
     entrypoint:
       - sh
       - -c
@@ -275,6 +264,7 @@ services:
         # then verify size and gzip integrity, and only then rename into place.
         # Pruning old files happens only after a verified dump from this run.
         set -eu
+        umask 077
         ts=$$(date -u +%Y%m%dT%H%M%SZ)
         final="/backups/keycloak-$${ts}.sql.gz"
         raw="/backups/.keycloak-$${ts}.sql"

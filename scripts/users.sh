@@ -17,7 +17,7 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required (apt install jq)"
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1091
-. "${DIR}/.env"
+[ ! -f "${GRYT_ENV_FILE:-${DIR}/.env}" ] || . "${GRYT_ENV_FILE:-${DIR}/.env}"
 
 KC_URL="http://127.0.0.1:${GRYT_KEYCLOAK_PORT:-18080}"
 REALM="${GRYT_REALM:-gryt}"
@@ -46,7 +46,7 @@ auth=(-H "Authorization: Bearer ${token}")
 
 find_user() {
   # Prints the user id, or nothing if the user does not exist.
-  curl -sS "${auth[@]}" "${KC_URL}/admin/realms/${REALM}/users?username=${1}&exact=true" \
+  curl -sS "${auth[@]}" --get --data-urlencode "username=${1}" --data-urlencode exact=true "${KC_URL}/admin/realms/${REALM}/users" \
     | jq -r '.[0].id // empty'
 }
 
@@ -54,13 +54,14 @@ case "${cmd}" in
   create_user)
     username="${1:?username required}"
     password="${2:?password required}"
+    case "$username" in *@*.*) ;; *) echo 'ERROR: use an email address as the username.' >&2; exit 1 ;; esac
     if [ -n "$(find_user "${username}")" ]; then
       echo "ERROR: user '${username}' already exists. Use reset_password to change its password." >&2
       exit 1
     fi
     code=$(curl -sS -o /tmp/user.out -w '%{http_code}' -X POST "${auth[@]}" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --arg u "${username}" '{username: $u, enabled: true, emailVerified: true}')" \
+      -d "$(jq -n --arg u "${username}" '{username: $u, email: $u, enabled: true, emailVerified: false}')" \
       "${KC_URL}/admin/realms/${REALM}/users")
     [ "${code}" = "201" ] || { echo "ERROR: user creation returned ${code}"; cat /tmp/user.out; exit 1; }
     newid="$(find_user "${username}")"
@@ -93,10 +94,10 @@ case "${cmd}" in
     [ -n "${id}" ] || { echo "ERROR: user '${username}' not found." >&2; exit 1; }
     code=$(curl -sS -o /tmp/dis.out -w '%{http_code}' -X PUT "${auth[@]}" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --argjson e "${state}" '{enabled: $e}')" \
+      -d "$(jq -n --argjson e "${state}" '{enabled: ($e | not)}')" \
       "${KC_URL}/admin/realms/${REALM}/users/${id}")
     [ "${code}" = "204" ] || { echo "ERROR: returned ${code}"; cat /tmp/dis.out; exit 1; }
-    echo "OK: user '${username}' enabled=${state}."
+    echo "OK: user '${username}' disabled=${state}."
     ;;
   list_users)
     curl -sS "${auth[@]}" "${KC_URL}/admin/realms/${REALM}/users?max=100" \

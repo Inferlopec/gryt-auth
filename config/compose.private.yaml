@@ -1,0 +1,8 @@
+# Explicit dedicated-VM override. Compose >=2.24.4; encrypted/restricted tunnel required.
+services:
+  keycloak:
+    ports: !override
+      - '${GRYT_PRIVATE_BIND_ADDRESS:?set the auth VM tunnel address}:${GRYT_KEYCLOAK_PORT:-18080}:8080'
+  identity:
+    ports: !override
+      - '${GRYT_PRIVATE_BIND_ADDRESS:?set the auth VM tunnel address}:${GRYT_IDENTITY_PORT:-18081}:3000'

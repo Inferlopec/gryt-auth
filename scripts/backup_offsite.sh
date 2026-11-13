@@ -10,7 +10,7 @@
 # configurable. Set BACKUP_OFFSITE_CMD in .env to a single command that copies
 # ./backups/keycloak-*.sql.gz and ./backups/ca-key-*.tar.gz to the destination,
 # e.g.
-#   BACKUP_OFFSITE_CMD=rsync -a --delete ./backups/ backup-host:/var/backups/inferlo-identity/
+#   BACKUP_OFFSITE_CMD='rsync -a "$BACKUPS/" backup-host:/var/backups/inferlo-identity/'
 # or an rclone/rclone-crypt command for a bucket.
 #
 # Schedule it (example, cron on the stack host):
@@ -20,7 +20,8 @@
 set -eu
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BACKUPS="${DIR}/backups"
+cd "${DIR}"
+BACKUPS="${GRYT_AUTH_BACKUP_DIR:-${DIR}/backups}"
 
 # shellcheck disable=SC1091
 if [ -f "${DIR}/.env" ]; then
@@ -29,6 +30,8 @@ if [ -f "${DIR}/.env" ]; then
   set +a
 fi
 
+BACKUPS="${GRYT_AUTH_BACKUP_DIR:-${DIR}/backups}"
+export BACKUPS
 CMD="${BACKUP_OFFSITE_CMD:-}"
 if [ -z "${CMD}" ]; then
   echo "[backup-offsite] BACKUP_OFFSITE_CMD is not set in .env — skipping."
@@ -43,7 +46,8 @@ if [ -z "${newest_dump}" ]; then
   exit 1
 fi
 if [ -z "${newest_ca}" ]; then
-  echo "[backup-offsite] WARNING: no ca-key-*.tar.gz in ${BACKUPS}. Run scripts/ca_key_backup.sh first." >&2
+  echo "[backup-offsite] ERROR: no ca-key-*.tar.gz in ${BACKUPS}. Run scripts/ca_key_backup.sh first." >&2
+  exit 1
 fi
 
 echo "[backup-offsite] Copying $(basename "${newest_dump}")$( [ -n "${newest_ca}" ] && echo " and $(basename "${newest_ca}")" )"

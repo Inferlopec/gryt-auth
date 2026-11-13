@@ -23,7 +23,27 @@ Upstream commit `4bbd2348...` is `main` as of 2026-11-13:
 3. If `keycloak.version` in `keycloak-pairing/pom.xml` changed, bump the Keycloak
    image tags in `docker-compose.yml` in the same change (checked by
    `scripts/check-keycloak-version.mjs`) and rebuild the pairing jar.
-4. Replace the vendored directories, re-run `tests/run_all.sh`.
+4. Replace the vendored directories, re-run `tests/run_all.sh --with-gryt`.
 5. Update this file with the new SHA and date.
 
-See `docs/upgrades.md` for the operational procedure.
+See [upstream upgrades](upstream-upgrades.md) for development and
+[operator maintenance](../operator/maintenance.md) for deployment.
+
+## Compatibility fixtures
+
+- Gryt Server: `f537aa5e3d8a4bdba3c75e34b6dbfece2d727f42`, built and tested
+  as two isolated servers by tests/docker-compose.test.yml.
+- Gryt Client candidate: `0cd7718ae834485ed3d4e9f5699f9800d9c7cdc1`;
+  runtime config, account settings and Electron callback code inspected;
+  real Web/Desktop compatibility NOT EXECUTED.
+
+Infrastructure bootstrap now uses the Admin API instead of offline realm
+replacement. See identity/VENDOR.md for security patches to the vendored CA.
+
+## Gryt CLI procedure reference
+
+Operator file-layout/create/start examples were inspected at CLI v0.8.1
+(commit `2c7dea7a71c66aeb448fcb75e202c9cc5a266a81`). Its `create` command
+writes a new profile; `start` also writes/starts the shared project. The
+operator guide intentionally applies existing-server trust through that
+server's env_file and a targeted Compose recreation instead.

@@ -1,41 +1,15 @@
-# Caddy — blocks for the dedicated-VM layout (Caddy and the identity stack on
-# separate machines).
-#
-# Network requirements (see docs/deployment.md):
-#   - A private, firewall-restricted connection between the Caddy machine and
-#     the auth VM (e.g. a WireGuard tunnel, or a private VPC subnet with a
-#     firewall allowing only 443 from the Caddy machine to the auth VM).
-#   - Do NOT assume localhost routing works across separate VMs.
-#   - Do NOT publish 18080/18081 to the public internet: on the auth VM keep
-#     them on 127.0.0.1 (the compose default) and terminate the tunnel to a
-#     local port, or publish to the private interface only and let the
-#     firewall restrict the source.
-#
-# If the tunnel endpoint on the auth VM listens on, say, 10.88.0.2, the Caddy
-# blocks below proxy to that address. Transport between the VMs is encrypted
-# by the tunnel itself; Caddy still terminates TLS for the public hostnames.
-# This file is a snippet for the operator to apply; it is not applied automatically.
-
+# Operator proposal only. Replace the example address with the auth VM WireGuard IP.
+# On that VM use config/compose.private.yaml to bind the tunnel interface.
+# Only the Caddy peer may reach these ports; WireGuard encrypts the inter-VM traffic.
 auth.inferlo.xyz {
-    # <auth-vm-private-ip> = private address of the auth VM on the restricted network
     reverse_proxy 10.88.0.2:18080
 }
-
 id.inferlo.xyz {
-    reverse_proxy 10.88.0.2:18081
+    reverse_proxy 10.88.0.2:18081 {
+        header_up CF-Connecting-IP {remote_host}
+        header_up -CF-IPCountry
+        header_up -CF-IPCity
+    }
 }
-
-# On the auth VM the stack still binds 127.0.0.1 (compose default). The tunnel
-# (e.g. wg quick / a local socat/forward) must deliver traffic to those ports.
-# If the tunnel endpoint is a different local port than 18080/18081, adjust
-# GRYT_KEYCLOAK_PORT / GRYT_IDENTITY_PORT in .env accordingly.
-#
-# GRYT_PAIRING_TRUSTED_PROXIES: when Caddy sits on another VM, the identity
-# service sees the tunnel's source address, not 127.0.0.1. Set
-# GRYT_PAIRING_TRUSTED_PROXIES in .env to that address (e.g. 10.88.0.1) so the
-# pairing relay's per-client rate limiting keeps working.
-#
-# Verification after reload (from the Caddy machine):
-#   curl -fsS https://auth.inferlo.xyz/realms/gryt/.well-known/openid-configuration | head
-#   curl -fsS https://id.inferlo.xyz/health
-#   curl -fsS https://id.inferlo.xyz/.well-known/jwks.json
+# Set both trusted-proxy variables to the actual source observed in each container.
+# A tunnel does not automatically route its interface ports to 127.0.0.1.
