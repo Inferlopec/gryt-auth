@@ -42,10 +42,9 @@ export async function ensureUser() {
   }
 }
 // Same code/PKCE exchange as the Gryt clients. No direct-grant exception in fixtures.
-export async function login(password = 'Test-Pass-123', verifierOverride) {
+export async function login(password = 'Test-Pass-123', verifierOverride, { redirect = 'http://localhost:3666/cb', origin } = {}) {
   const verifier = random(48);
   const state = random();
-  const redirect = 'http://localhost:3666/cb';
   const query = new URLSearchParams({ client_id: 'gryt-web', response_type: 'code',
     redirect_uri: redirect, scope: 'openid profile email offline_access', state,
     code_challenge: digest(verifier), code_challenge_method: 'S256' });
@@ -72,12 +71,13 @@ export async function login(password = 'Test-Pass-123', verifierOverride) {
   const location = new URL(done.headers.get('location'));
   assert.equal(location.origin + location.pathname, redirect);
   assert.equal(location.searchParams.get('state'), state);
-  const tokens = await request(`${realm}/protocol/openid-connect/token`, { method: 'POST', form: {
+  const tokens = await request(`${realm}/protocol/openid-connect/token`, { method: 'POST', headers: origin ? { Origin: origin } : {}, form: {
     grant_type: 'authorization_code', client_id: 'gryt-web', code: location.searchParams.get('code'),
     redirect_uri: redirect, code_verifier: verifierOverride || verifier,
   } });
   if (verifierOverride) { assert.equal(tokens.status, 400, 'wrong PKCE verifier'); return; }
   assert.equal(tokens.status, 200, 'code/PKCE exchange');
+  if (origin) assert.equal(tokens.headers.get('access-control-allow-origin'), origin, 'token response CORS');
   return tokens.data;
 }
 export async function deviceCertificate(token, origin = ID) {

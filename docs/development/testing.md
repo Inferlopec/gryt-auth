@@ -23,7 +23,9 @@ tests/run_all.sh --with-gryt
 The test project has its own PostgreSQL, CA keys, artifacts and server volumes.
 Its host ports are 18280/18281 on loopback. The two actual Gryt server fixtures
 are pinned by source commit in `tests/docker-compose.test.yml`.
-The suite checks authorization code + PKCE, signed certificates, issuer/audience
+The suite checks the official Desktop callback with code + PKCE, token-response
+CORS for the exact Electron Origin (including refresh and denied origins),
+rejection of unregistered official-host callback paths, authorization code + PKCE, signed certificates, issuer/audience
 rejection, device authorization, relay, independent server bans, CA recreation,
 non-destructive SMTP updates and destructive-recovery round trips.
 
@@ -51,6 +53,7 @@ IDs. A fresh test run should use a coherent fresh set of fixtures.
 
 ```bash
 python3 tests/test_archive_validation.py
+python3 tests/test_client_access.py
 ```
 
 After building the test-runner image, upstream Identity unit tests can run via:

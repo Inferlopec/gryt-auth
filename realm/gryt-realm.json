@@ -192,13 +192,13 @@
         "https://app.inferlo.xyz/*",
         "http://localhost:3666/*",
         "http://localhost:3667/*",
-        "http://127.0.0.1:*"
+        "https://gryt.chat/auth/callback"
       ],
       "webOrigins": [
         "https://app.inferlo.xyz",
         "http://localhost:3666",
         "http://localhost:3667",
-        "http://127.0.0.1:*"
+        "http://127.0.0.1:15738"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",

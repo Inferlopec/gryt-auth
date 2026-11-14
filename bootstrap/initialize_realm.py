@@ -4,6 +4,7 @@ import pathlib
 import sys
 
 from keycloak_admin import Admin, smtp_settings
+from client_access import access_settings
 
 
 def main():
@@ -11,6 +12,8 @@ def main():
     realm = json.loads(pathlib.Path("/realm/gryt-realm.json").read_text())
     if realm["realm"] != admin.realm:
         raise ValueError("GRYT_REALM must match the versioned realm template")
+    client = next(c for c in realm["clients"] if c["clientId"] == "gryt-web")
+    client.update(access_settings(client))
     realm["smtpServer"] = smtp_settings()
     realm["verifyEmail"] = bool(realm["smtpServer"])
     realm["resetPasswordAllowed"] = bool(realm["smtpServer"])

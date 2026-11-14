@@ -11,6 +11,7 @@ implementation context and maintainer procedures.
 | Detailed security behavior and deviations | [Security](security.md) |
 | Vendored source and compatibility pins | [Upstream revisions](upstream-revisions.md) |
 | Updating upstream components | [Upstream upgrades](upstream-upgrades.md) |
+| Bug register and remaining acceptance checks | [Known issues](../qa/known-issues.md) |
 | Evidence from executed checks | [Test results](test-results.md) |
 | Operator release contents and build requirements | [Releases](releases.md) |
 | Optional separate-VM layout | [Deployment notes](deployment-notes.md) |

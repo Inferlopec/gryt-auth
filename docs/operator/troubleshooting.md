@@ -78,7 +78,7 @@ the original issuer order/profile using [rollback](rollback.md).
 Inspect the selected Desktop release's callback setting and OS gryt:// handler.
 Changing issuer/Identity fields in the UI does not change the callback. Follow
 [clients](clients.md#desktop-callback); do not assume an app-hosted SPA path is
-a callback bridge. Desktop acceptance remains an open release check.
+a callback bridge. The macOS staging result and remaining callback limitations are documented there.
 
 ## Email verification or password reset never arrives
 

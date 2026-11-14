@@ -13,6 +13,7 @@ run 'Account and CA snapshot before recovery'
 # Creating a realm again must leave all user IDs intact.
 "${c[@]}" run --rm --no-deps keycloak-import
 "${c[@]}" run --rm --no-deps keycloak-client-policy
+"${c[@]}" run --rm --no-deps keycloak-client-access
 run 'Recovery preserves user subject'
 run 'Save original mail settings'
 "${c[@]}" run --rm --no-deps -e GRYT_SMTP_HOST=mail.example.test \

@@ -3,7 +3,8 @@
 Prerequisite: the auth/id HTTPS endpoints work and the target Gryt server
 [trusts Inferlo](existing-server.md). Use an existing invitation where required.
 
-Real graphical Web/Desktop login has not yet been accepted for production.
+Graphical Web/Desktop acceptance for production remains open.
+A successful macOS staging test is recorded under [Desktop callback](#desktop-callback).
 The configuration below was checked against client source at
 `0cd7718ae834485ed3d4e9f5699f9800d9c7cdc1`; test the release you actually use.
 A backend protocol test does not prove OS deep-link handling works.
@@ -59,17 +60,29 @@ Web login returns to its current page URL rather than the Desktop callback.
 
 ## Desktop callback
 
-The inspected Desktop client reads `GRYT_AUTH_CALLBACK_URL` from runtime config
-for authorization and code exchange. Its Electron process accepts `gryt://`
-links and forwards them to the callback handler, which verifies state. The
-proposed direct callback is `gryt://auth/callback`, already allowed by the
-realm. This avoids needing an official hosted callback bridge.
+The owner tested official Gryt Desktop **1.15.12 on macOS** on November 14,
+2026: login, staging-server certificate authentication, persistence after restart,
+and pairing between two MacBooks succeeded after correcting Keycloak allowlists.
+See the [deployment findings](../qa/known-issues.md). This is staging evidence;
+production readiness and graphical Web acceptance remain separate checks.
 
-The selected Desktop release must actually receive that runtime configuration
-through its supported packaging/build mechanism. OS registration and the
-browser-to-application handoff are not tested yet. Do not replace the callback
-with `https://app.inferlo.xyz/auth/callback` unless that route implements an
-actual bridge; an ordinary SPA fallback is insufficient.
+That release sends `https://gryt.chat/auth/callback` and uses renderer Origin
+`http://127.0.0.1:15738`. The realm template permits this exact callback and
+Origin. The official callback creates a security and availability dependency on
+`gryt.chat`; this setup does not yet meet full independence from official services.
+Changing the issuer and Identity URL in account settings does not change that
+callback.
+
+The inspected source also supports `GRYT_AUTH_CALLBACK_URL` through runtime
+configuration and accepts `gryt://` links. The existing
+`gryt://auth/callback` allowlist entry is retained for custom builds. A direct
+self-hosted handoff is a separate, unverified architecture; OS deep-link handling
+and delivery of runtime configuration to a packaged release still need testing.
+Do not replace the callback with `https://app.inferlo.xyz/auth/callback` unless
+that route implements an actual bridge; an ordinary SPA fallback is insufficient.
+
+For existing realms and other renderer ports, follow
+[client allowlist configuration](configuration.md#oauth-callbacks-and-web-origins).
 
 ## Acceptance check
 

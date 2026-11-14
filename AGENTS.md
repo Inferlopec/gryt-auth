@@ -4,6 +4,8 @@
 
 - README.md: user entry point and current download status.
 - docs/development/implementation-status.md: current implementation and open work.
+- docs/qa/known-issues.md: canonical issue register. Record every new bug here
+  and update its status, evidence and remaining acceptance checks with each fix.
 - specification.md: requirements and the owner's recorded infrastructure audit.
 - docs/development/architecture.md and upstream-revisions.md: identity semantics,
   component pins and compatibility boundaries.

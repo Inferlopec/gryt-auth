@@ -8,6 +8,7 @@ docker compose build identity
 docker compose up -d --wait --wait-timeout 300 postgres keycloak
 docker compose run --rm --no-deps keycloak-import
 docker compose run --rm --no-deps keycloak-client-policy
+docker compose run --rm --no-deps keycloak-client-access
 docker compose run --rm --no-deps keycloak-security-policy
 docker compose run --rm --no-deps keycloak-device-grant
 docker compose run --rm --no-deps -e GRYT_CA_ALLOW_GENERATE=1 identity \

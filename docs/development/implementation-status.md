@@ -15,6 +15,10 @@ update. Documentation examples must not imply otherwise.
 - Database and CA backup/recovery tools, including real restore exercises.
 - Independent two-server joins, issuer namespace isolation and per-server bans.
 - Operator/development documentation split and root agent entry point.
+- BUG-01/BUG-02: exact official Desktop callback and Electron Origin defaults,
+  configurable additions and non-destructive existing-client updates, with
+  passing isolated protocol/CORS and recovery regressions. Graphical retest
+  of these changes remains pending.
 
 See [test results](test-results.md) for exact executed checks and fixture pins.
 

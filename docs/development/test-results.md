@@ -59,3 +59,39 @@ The client/runtime/desktop-callback source was inspected at
 - Edge rate limiting for certificate issuance and real production-server compatibility.
 
 These results establish the protocol/recovery milestone, not production readiness.
+
+## Phase 1 — BUG-01 and BUG-02
+
+Executed November 14, 2026 against the isolated test project after the Desktop
+allowlist changes. No production data, keys or infrastructure were accessed.
+
+- `tests/run_all.sh --with-gryt`: exit 0; 20 Identity unit tests, 6 archive
+  safety tests, 4 client-access regression tests and 9 main integration cases
+  passed. CA recreation and the complete database/CA recovery sequence passed.
+- The new integration case performs code + PKCE with
+  `https://gryt.chat/auth/callback` and checks the exact
+  `Access-Control-Allow-Origin: http://127.0.0.1:15738` on the successful token
+  exchange and refresh responses. OPTIONS is checked separately. Untrusted
+  Origins, a different renderer port and unregistered official-host callback
+  paths are negative controls. Requests do not follow the official callback
+  or contact `gryt.chat`.
+- Existing-realm client updates were repeated during recovery; the same user
+  subject, login and existing certificate trust survived. Local regression
+  tests cover additive configuration, preservation of custom entries, invalid
+  arrays/wildcards, dry run and unordered Keycloak read-back.
+- `keycloak-client-access --dry-run` was exercised against the isolated realm.
+- Base, isolated-test and private-host Compose configuration validation passed
+  using throwaway credentials and an example private bind address.
+- Changed Python/Bash/JavaScript syntax, local documentation file references
+  and `git diff --check` passed.
+
+Raw full-run log: `/tmp/gryt-auth-phase1-tests.log` (ephemeral local evidence).
+The first attempt stopped at a read-back ordering mismatch; comparison was
+corrected for Keycloak's unordered allowlists before the successful full run.
+
+This is protocol and recovery evidence. The owner's previous macOS Desktop
+1.15.12 staging success used manual Keycloak corrections; a fresh graphical
+Desktop run with these repository changes, graphical Web acceptance and
+production acceptance were not executed here. BUG-01/BUG-02 remain FIXED
+pending that graphical regression. The official hosted callback dependency
+remains; a fully self-hosted callback is separate work.

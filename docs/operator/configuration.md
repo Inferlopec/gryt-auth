@@ -43,6 +43,52 @@ a startup error.
 The client-facing variables in `.env` are a reference: they are not applied to
 an existing client automatically. Follow [clients](clients.md).
 
+## OAuth callbacks and Web Origins
+
+Fresh initialization includes the exact official Desktop 1.15.12 callback
+`https://gryt.chat/auth/callback` and renderer Origin `http://127.0.0.1:15738`.
+Development callbacks on localhost ports 3666/3667, the custom `gryt://` callback,
+and the Inferlo web app settings remain available. See
+[Desktop callback limitations](clients.md#desktop-callback), including the
+ongoing dependency on `gryt.chat`.
+
+Additional exact callback URLs and HTTP(S) Origins can be supplied as JSON arrays
+in `.env`. Example for a custom web client and a different Electron renderer port:
+
+```dotenv
+GRYT_OIDC_EXTRA_REDIRECT_URIS='["https://custom.example.net/auth/callback"]'
+GRYT_OIDC_EXTRA_WEB_ORIGINS='["https://custom.example.net","http://127.0.0.1:20000"]'
+```
+
+Origins have no path or trailing slash. Inspect the actual client request's
+`redirect_uri` and `Origin`; do not infer the callback from the renderer port.
+Wildcards are rejected in these additions. `GRYT_AUTH_CALLBACK_URL` describes
+client runtime configuration and does not itself register a Keycloak callback.
+
+For an **existing realm**, review and explicitly apply the client-only update
+from the Identity project directory using current administrator credentials:
+
+```bash
+docker compose run --rm --no-deps keycloak-client-access --dry-run
+docker compose run --rm --no-deps keycloak-client-access
+```
+
+Expected: the dry run shows before/after allowlists; the apply command prints
+`gryt-web callback and Web Origins configured; accounts preserved.` It reads
+back the settings to verify the update. Existing custom allowlist entries are
+preserved; only the legacy `http://127.0.0.1:*` entry is removed from both lists.
+No realm replacement, user deletion, CA change or Gryt restart is involved.
+Review retained entries separately if the realm has other permissive settings.
+A normal startup does not apply the update. Explicit initialization runs it,
+and fresh realm creation incorporates the additional addresses too.
+
+Removing an address from `.env` does not revoke a previously added address.
+For rollback, restore the reviewed prior allowlists in the Keycloak Admin
+Console, under `gryt` → Clients → `gryt-web`; avoid restoring the ineffective
+wildcard. Retest with a disposable account. See [rollback](rollback.md) for
+integration rollback and [backup and recovery](backup-and-recovery.md) for
+recovery procedures. Never reimport a realm to adjust these lists.
+
 ## Proxy trust
 
 Inspect the isolated network after initialization:

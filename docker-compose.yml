@@ -95,6 +95,8 @@ services:
     environment: &admin-environment
       KC_URL: http://keycloak:8080
       GRYT_REALM: ${GRYT_REALM:-gryt}
+      GRYT_OIDC_EXTRA_REDIRECT_URIS: ${GRYT_OIDC_EXTRA_REDIRECT_URIS:-[]}
+      GRYT_OIDC_EXTRA_WEB_ORIGINS: ${GRYT_OIDC_EXTRA_WEB_ORIGINS:-[]}
       GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
       GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD:?set in .env}
       GRYT_SMTP_HOST: ${GRYT_SMTP_HOST:-}
@@ -132,6 +134,16 @@ services:
     profiles: ["configure"]
     environment: *admin-environment
     entrypoint: ["python", "/bootstrap/configure_client.py"]
+    volumes: *bootstrap-volumes
+    networks: [inferlo-identity]
+    restart: "no"
+    deploy: *job-limits
+
+  keycloak-client-access:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: ["configure"]
+    environment: *admin-environment
+    entrypoint: ["python", "/bootstrap/configure_client_access.py"]
     volumes: *bootstrap-volumes
     networks: [inferlo-identity]
     restart: "no"

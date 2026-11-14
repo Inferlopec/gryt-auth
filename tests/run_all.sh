@@ -12,6 +12,7 @@ for arg in "$@"; do
     *) echo "Usage: tests/run_all.sh [--with-gryt] [--no-build]" >&2; exit 1 ;;
   esac
 done
+python3 tests/test_client_access.py
 if ! docker info >/dev/null 2>&1; then
   echo 'NOT EXECUTED: Docker unavailable. Reproduce: tests/run_all.sh --with-gryt'
   exit 2
@@ -22,6 +23,7 @@ if [ "$reuse" = 0 ]; then
   "${compose[@]}" up -d --wait --wait-timeout 300 postgres keycloak
   "${compose[@]}" run --rm --no-deps keycloak-import
   "${compose[@]}" run --rm --no-deps keycloak-client-policy
+  "${compose[@]}" run --rm --no-deps keycloak-client-access
   "${compose[@]}" run --rm --no-deps keycloak-device-grant
   "${compose[@]}" run --rm --no-deps keycloak-security-policy
   for svc in identity other-identity; do
