@@ -8,23 +8,14 @@ device linking; the protocol is in Gryt-chat/crypto `docs/pairing-design.md`).
 
 - Upstream repository: https://github.com/Gryt-chat/auth (directory `keycloak-pairing/`)
 - Pinned upstream commit: `4bbd2348b65dc4ca61e2c1f39b100fb3d2ed05e4` (main, 2026-11-13)
-- License: AGPL-3.0 (see upstream `LICENSE`)
+- License: upstream AGPL-3.0-or-later notice; see [license text](../LICENSES/gryt-auth.txt)
 
-## Build
+## Build and version coupling
 
-The extension is a plain jar mounted into the Keycloak container at
-`/opt/keycloak/providers/gryt-pairing.jar`. Build it with:
-
-```bash
-keycloak-pairing/build.sh   # builds in Docker, writes keycloak-pairing/dist/gryt-pairing.jar
-```
-
-A missing jar becomes a directory on the bind mount, and Keycloak then refuses
-to start — `scripts/preflight.sh` checks for it before `compose up`.
-
-## Version coupling
-
-`<keycloak.version>` in `pom.xml` must equal the `quay.io/keycloak/keycloak:*`
-image tag in `docker-compose.yml`. `scripts/check-keycloak-version.mjs` fails
-the check otherwise, so a Keycloak bump requires rebuilding and re-testing the
-extension against the new image.
+Build/validation commands are maintained in
+[DEVELOPMENT](../docs/DEVELOPMENT.md#build-and-upstream-changes).
+The JAR is mounted at `/opt/keycloak/providers/gryt-pairing.jar`.
+`<keycloak.version>` in pom.xml must equal the Keycloak image tag in Compose;
+`scripts/check-keycloak-version.mjs` checks this coupling. Rebuild/retest the
+provider for a Keycloak change. No provider source changes are introduced by
+the documentation consolidation.

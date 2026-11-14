@@ -1,8 +1,15 @@
-# Vendored realm and bootstrap patches
+# Vendored sources and local patches
 
 Base: Gryt-chat/auth commit `4bbd2348b65dc4ca61e2c1f39b100fb3d2ed05e4`,
 `realm/` and `bootstrap/`. Component-specific changes are recorded in
 [Identity](identity/VENDOR.md) and [Pairing](keycloak-pairing/VENDOR.md).
+
+The upstream copyright notice and complete license are retained verbatim in
+[LICENSES/gryt-auth.txt](LICENSES/gryt-auth.txt). The same pinned commit supplies
+Identity, pairing, realm and bootstrap sources. Keycloak is pinned to **26.5.3**;
+its image tag must match the provider pom.xml version. Image digests remain in
+Compose/Dockerfiles, not a duplicate documentation manifest. Build/upgrade
+checks are in [DEVELOPMENT](docs/DEVELOPMENT.md#build-and-upstream-changes).
 
 Local adaptations include non-destructive Admin API initialization, audience
 configuration, SMTP configuration and Inferlo realm defaults.
@@ -20,6 +27,9 @@ existing custom-scheme, Inferlo web and localhost development callbacks.
 Fresh realm initialization consumes them; `configure_client_access.py` provides
 an explicit client-only update with dry run and read-back for existing realms.
 It preserves other operator entries and does not replace users, realm or CA.
+Documentation was consolidated on 2026-11-14; the Identity component README now
+links to the local behavior rather than describing upstream CA auto-generation.
+
 No upstream client protocol, PKCE requirement, Keycloak version, reverse-proxy
 CORS behavior or pairing extension version is changed.
 
