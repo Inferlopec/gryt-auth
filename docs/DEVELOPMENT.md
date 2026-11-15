@@ -48,7 +48,7 @@ does not establish graphical account-secret transfer.
 | `docker-compose.yml` | Independent auth services, private ports, volumes, resource/image pins |
 | `.env.example` | Authoritative stack-variable/default reference; private `.env` supplies values |
 | `realm/gryt-realm.json` | Fresh-realm template; not a live configuration sync mechanism |
-| `bootstrap/` | Admin API initialization and explicit client/security/device/SMTP jobs |
+| `bootstrap/` | Admin API initialization and explicit client/security/device/SMTP/theme jobs |
 | `identity/src/` | Token validation, CA/certificates, account keys and relay |
 | `keycloak-pairing/` | Keycloak device-approval provider and Docker build |
 | `scripts/` | Operator initialization, checks, accounts and backup/recovery |
@@ -156,6 +156,15 @@ docker compose -f tests/docker-compose.test.yml run --rm --no-deps --entrypoint 
 
 Individual shell wrappers need the prepared stack; Gryt joins also require
 `GRYT_TEST_SERVERS` and both fixtures. They do not replace the full recovery run.
+`tests/run_all.sh --with-gryt` also invokes the actual deployed preflight's
+`main()` against the isolated Keycloak/Identity fixtures before, during and after
+callback/Origin removal. This test replaces only the HTTPS URL policy for the
+fixed internal HTTP fixture addresses; production HTTPS validation stays enabled.
+It verifies failure exit codes even when OPTIONS permits the removed Origin.
+Offline regressions reject unusable P-256 points and non-OAuth responses to the
+denied-Origin smoke request. The suite also verifies theme defaults and
+non-destructive theme updates. Graphical responsive review of Keycloak login,
+error, account and email pages remains a separate acceptance check.
 For documentation-only edits, check links/anchors/file paths, shell syntax,
 command semantics against source and `git diff --check`; a full stack run is
 unnecessary. Report unexecuted commands explicitly.
@@ -207,3 +216,24 @@ case completed authorization-code + PKCE exchange and refresh for both
 renderer Origin. It also checked denied Origins and callback lookalikes. The
 run used isolated test services and did not contact `gryt.chat` or production.
 Graphical acceptance with an updated packaged Desktop release remains pending.
+
+### Deployed preflight and themes (2026-11-15)
+
+`tests/run_all.sh --with-gryt` exited 0 after adding BUG-04 negative fixtures
+and the live theme-update job. The isolated Keycloak fixture rejected the
+removed Desktop callback and stopped returning token-response CORS after the
+renderer Origin was removed; both checks restored the fixture configuration.
+The theme job passed dry-run and update/read-back against the existing realm,
+then the existing test account completed code + PKCE login and refresh. The full
+run also passed the two-server Gryt joins and DB/CA recovery cases. Only test
+containers and volumes were used; deployed preflight against a public host and
+graphical desktop/mobile or email-rendering review were not performed.
+
+Review follow-up: the full isolated suite exited 0 after replacing the direct
+Keycloak negative checks with two tests invoking the actual preflight `main()`.
+Both demonstrated healthy → failure → healthy results for callback/Origin
+removal, with OPTIONS still succeeding in the missing-Origin case. Six offline
+preflight tests also passed, including malformed/off-curve Identity coordinates
+and rejected gateway/HTML/non-`invalid_grant` responses for the denied Origin.
+This remains HTTP fixture evidence; public HTTPS and graphical acceptance are
+pending.

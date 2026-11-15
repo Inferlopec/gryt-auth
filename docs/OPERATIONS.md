@@ -84,6 +84,13 @@ before reopening traffic. These commands do not update Gryt/shared services.
 Downgrading Keycloak after a schema migration can require the matching old DB
 backup, not just the old image.
 
+To preview or apply the supported built-in realm themes on an existing realm,
+use the explicit [`keycloak-themes` job](SETUP.md#login-account-and-email-themes).
+The job changes only login/account/email theme selections; capture their current
+values with `--dry-run` for rollback. Verify login, error and account pages at
+desktop and mobile sizes, plus rendered email content, before treating the
+visual change as accepted.
+
 ## Backups and recovery
 
 Protect the PostgreSQL database, CA key **and** `accounts/` records, `.env`,
@@ -181,6 +188,7 @@ authorization codes, passwords and keys before sharing diagnostics.
 | Invalid token / no applicable JWKS key | Check both client auth endpoints and token issuer/audience locally; do not send tokens to public decoders. For an older realm run `docker compose run --rm --no-deps keycloak-client-policy`, then obtain a new token. |
 | Desktop callback rejected / token blocked by CORS | Check actual redirect URI and Origin against [allowlists](SETUP.md#callback-and-origin-allowlists); OPTIONS success alone does not prove token-response CORS. |
 | Desktop browser login never completes | Check the selected release's callback and OS handler; see [Desktop limitations](SETUP.md#desktop-and-web-clients). An arbitrary SPA route is not a callback bridge. |
+| Login page appears unstyled | Run `scripts/preflight.sh --deployed` for endpoint/configuration checks, then confirm the realm's selected theme and reload without a stale browser cache. Endpoint success does not prove CSS assets render in the graphical client. |
 | Account cannot join | Check server trust order, version, invitation/membership and bans. Stop rollout and [roll back](#rollback) if existing users lose roles. |
 | Verification/reset email absent | Apply `keycloak-smtp`, test realm email delivery, check STARTTLS, sender restrictions and provider logs/spam. Never reimport. |
 | CA load refused | Check persistent mount/permissions and restore the original key. Do not enable generation or remove its volume to bypass the error. |

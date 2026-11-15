@@ -13,6 +13,8 @@ for arg in "$@"; do
   esac
 done
 python3 tests/test_client_access.py
+python3 tests/test_deployed_preflight.py
+python3 tests/test_themes.py
 if ! docker info >/dev/null 2>&1; then
   echo 'NOT EXECUTED: Docker unavailable. Reproduce: tests/run_all.sh --with-gryt'
   exit 2
@@ -39,6 +41,14 @@ fi
 python3 tests/test_archive_validation.py
 "${compose[@]}" run --rm --no-deps --entrypoint yarn test-runner test
 "${compose[@]}" run --rm --no-deps test-runner
+"${compose[@]}" run --rm --no-deps preflight-test
+# Apply supported themes to the existing isolated realm and verify a known
+# account can still authenticate with the same subject afterwards.
+"${compose[@]}" run --rm --no-deps keycloak-themes --dry-run
+"${compose[@]}" run --rm --no-deps keycloak-themes
+"${compose[@]}" run --rm --no-deps test-runner \
+  --test-name-pattern='OIDC code.*PKCE, refresh, wrong password and wrong verifier' \
+  /app/integration/integration.test.mjs
 # Recreate (not merely restart) the CA; then cryptographically re-check a saved certificate.
 "${compose[@]}" run --rm --no-deps test-runner --test-name-pattern='CA snapshot before recreation' /app/integration/persistence.test.mjs
 "${compose[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 60 identity

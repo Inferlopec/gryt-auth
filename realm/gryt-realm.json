@@ -9,9 +9,9 @@
   "duplicateEmailsAllowed": false,
   "rememberMe": true,
   "verifyEmail": true,
-  "accountTheme": "base",
-  "loginTheme": "base",
-  "emailTheme": "base",
+  "accountTheme": "keycloak.v3",
+  "loginTheme": "keycloak.v2",
+  "emailTheme": "keycloak",
   "smtpServer": {
     "host": "__GRYT_SMTP_HOST__",
     "port": "__GRYT_SMTP_PORT__",

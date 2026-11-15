@@ -82,9 +82,19 @@ curl -fsS http://127.0.0.1:18081/health
 curl -fsS http://127.0.0.1:18081/.well-known/jwks.json
 ```
 
-Use configured ports if different. Preflight must report zero failures;
-public-endpoint warnings can precede DNS/Caddy setup. It does not establish
-Desktop compatibility. PostgreSQL, Keycloak and Identity must be healthy,
+Use configured ports if different. Installation preflight must report zero
+failures; public-endpoint warnings can precede DNS/Caddy setup. After public
+DNS and proxy routes are active, run `scripts/preflight.sh --deployed`. This
+read-only mode checks the live client allowlists through the local Admin API,
+public discovery/issuer and JWKS, Identity health/JWKS, both Desktop callback
+requests and a token-response CORS POST. Identity keys must contain valid public
+P-256 coordinates; both allowed and denied Origin requests must return the
+expected OAuth error before CORS is evaluated. It checks existing realms even though
+initialization skips their import. It requires working admin credentials and
+does not change realm settings. A missing callback or Origin is a failure;
+unreachable required checks return exit 2 and are not PASS. Successful endpoint
+checks do not establish graphical client compatibility or a successful user
+login. PostgreSQL, Keycloak and Identity must be healthy,
 pg-backup running, and every bootstrap job successful. Discovery must advertise
 the public issuer; health returns `{"status":"ok"}`; JWKS contains a public EC
 key with no private `d` field.
@@ -159,6 +169,24 @@ only the ineffective `http://127.0.0.1:*` entry is removed. Review any other
 permissive existing entries separately. Removing an addition from `.env` does
 not revoke it. Restore reviewed prior lists through `gryt` → Clients → `gryt-web`
 for allowlist rollback; do not restore that wildcard or reimport the realm.
+
+### Login, account and email themes
+
+Fresh realms select the built-in `keycloak.v2` login theme, `keycloak.v3`
+account theme and `keycloak` email theme available in pinned Keycloak 26.5.3.
+Existing realms are not changed by initialization. Preview and explicitly
+apply just the three theme fields with the configure-profile job:
+
+```bash
+docker compose run --rm --no-deps keycloak-themes --dry-run
+docker compose run --rm --no-deps keycloak-themes
+```
+
+The job reads its result back and preserves users and other realm settings.
+To roll back, restore the three values printed by the dry run through Keycloak
+Admin Console → **Realm settings** → **Themes**. Confirm login, error, account
+and email pages on desktop and mobile; this built-in theme change adds no custom
+branding.
 
 ### SMTP
 

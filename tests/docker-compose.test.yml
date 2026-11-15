@@ -76,6 +76,26 @@ services:
     entrypoint: [python, /bootstrap/configure_client_access.py]
     volumes: *bootstrap
 
+  keycloak-themes:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: [tools]
+    environment: *admin
+    entrypoint: [python, /bootstrap/configure_themes.py]
+    volumes: *bootstrap
+
+  preflight-test:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: [tools]
+    environment:
+      <<: *admin
+      GRYT_OIDC_ISSUER: http://keycloak:8080/realms/gryt
+      GRYT_IDENTITY_ORIGIN: http://identity:3000
+    entrypoint: [python, /tests/test_deployed_integration.py]
+    volumes:
+      - ../scripts:/scripts:ro
+      - ../bootstrap:/bootstrap:ro
+      - .:/tests:ro
+
   keycloak-device-grant:
     image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
     profiles: [tools]

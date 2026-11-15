@@ -6,6 +6,15 @@
 # block startup.
 set -uo pipefail
 
+deployed=0
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--deployed" ]; }; then
+  echo "Usage: scripts/preflight.sh [--deployed]" >&2
+  exit 1
+fi
+if [ "$#" -eq 1 ]; then
+  deployed=1
+fi
+
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${DIR}"
 fails=0
@@ -109,6 +118,19 @@ for u in "${GRYT_OIDC_ISSUER:-}" "${GRYT_IDENTITY_ORIGIN:-}"; do
   fi
 done
 
+if [ "$fails" -ne 0 ]; then
+  echo
+  echo "preflight: ${fails} failure(s), ${warns} warning(s)"
+  exit 1
+fi
+
+if [ "$deployed" -eq 1 ]; then
+  echo
+  echo "== Deployed authentication checks =="
+  KC_URL="http://127.0.0.1:${GRYT_KEYCLOAK_PORT:-18080}" \
+    python3 scripts/deployed_preflight.py
+  exit $?
+fi
+
 echo
 echo "preflight: ${fails} failure(s), ${warns} warning(s)"
-[ "${fails}" -eq 0 ] || exit 1

@@ -12,7 +12,10 @@ Compose/Dockerfiles, not a duplicate documentation manifest. Build/upgrade
 checks are in [DEVELOPMENT](docs/DEVELOPMENT.md#build-and-upstream-changes).
 
 Local adaptations include non-destructive Admin API initialization, audience
-configuration, SMTP configuration and Inferlo realm defaults.
+configuration, SMTP configuration, supported built-in Keycloak theme defaults
+and Inferlo realm defaults. The theme selections target `keycloak.v2` login,
+`keycloak.v3` account and `keycloak` email themes shipped by pinned Keycloak
+26.5.3; existing realms use an explicit Admin API update job.
 
 ## Upstream PR #71 and Desktop callbacks
 
