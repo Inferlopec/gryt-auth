@@ -31,6 +31,7 @@ owner audit; it is not a current host-health report.
   Docs-only: verify links, commands/source semantics and `git diff --check`.
 - Preserve unrelated work. Do not claim releases, images, CI or production
   readiness without evidence, or document unimplemented deployment workflows.
-- Development uses direct commits, not pull requests.
-  Reference issues in commit messages (`#123`).
-  Do not automatically close issues requiring manual verification.
+- Do not create commits without the user's explicit confirmation. After
+  confirmation, development uses direct commits, not pull requests; reference
+  issue numbers in commit messages (`#123`). Do not automatically close issues
+  requiring manual verification.

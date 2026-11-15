@@ -165,7 +165,8 @@ unnecessary. Report unexecuted commands explicitly.
 | Component | Inspected/tested revision |
 |---|---|
 | Gryt Server fixtures | `f537aa5e3d8a4bdba3c75e34b6dbfece2d727f42` |
-| Gryt Client source inspection | `0cd7718ae834485ed3d4e9f5699f9800d9c7cdc1` |
+| Gryt Client PR #1197 | `5d8e294a09cb6626a67e8bb0740158ee27232503` |
+| Gryt Auth PR #71 | `77c38ca94dbe5a91adf271c234b535b5d4548fb2` |
 | Gryt CLI 0.8.1 procedure inspection | `2c7dea7a71c66aeb448fcb75e202c9cc5a266a81` |
 
 ### Recorded test evidence
@@ -178,17 +179,31 @@ data, DNS, Caddy or Gryt profiles were used or changed.
 
 Coverage included code + PKCE/refresh, wrong password/verifier and signed
 issuer/audience/expiry rejection; exact Desktop token-response/refresh CORS,
-OPTIONS and denied Origins/callbacks; device grant and sealed relay; two devices
+OPTIONS and denied Origins/callbacks for the then-current HTTPS callback; device
+grant and sealed relay; two devices
 on two actual servers, issuer isolation and independent bans; rejected untrusted/
 expired certificates; preserved CA trust after recreation; repeated initialization,
 SMTP/client-policy updates and destructive replacement followed by actual restore.
 Version coupling, base/test/private-override Compose and syntax checks also passed.
 
-The callback protocol test did not contact `gryt.chat`. Local logs were ephemeral
+This recorded run did not yet include the new deep-link callback flow. The
+callback protocol test did not contact `gryt.chat`. Local logs were ephemeral
 (`/tmp/gryt-auth-phase1-tests.log`); they are not archived production evidence.
 The owner separately reported Desktop 1.15.12 macOS staging login, restart and
 pairing after manual corrections. A fresh graphical Desktop regression, Web
 acceptance, real DNS/proxy trust, SMTP delivery, MFA/TOTP enforcement, off-host
 fresh-host recovery and production-server acceptance were **not executed** in
-that isolated run. No new stack tests are implied by this documentation refactor.
+that isolated run. The subsequent callback protocol run is recorded below;
+graphical and production checks remain pending.
 Use [production readiness](OPERATIONS.md#production-readiness) for remaining gates.
+
+### Callback update verification (2026-11-15)
+
+`tests/run_all.sh --with-gryt` exited 0 with Docker access: 20 Identity unit
+tests, 6 archive-safety tests, 4 client-access tests, 9 integration cases,
+CA recreation and DB/CA recovery checks passed. The updated Desktop integration
+case completed authorization-code + PKCE exchange and refresh for both
+`gryt://auth/callback` and `https://gryt.chat/auth/callback` with the exact
+renderer Origin. It also checked denied Origins and callback lookalikes. The
+run used isolated test services and did not contact `gryt.chat` or production.
+Graphical acceptance with an updated packaged Desktop release remains pending.

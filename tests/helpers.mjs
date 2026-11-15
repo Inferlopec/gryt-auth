@@ -69,7 +69,7 @@ export async function login(password = 'Test-Pass-123', verifierOverride, { redi
   }
   assert.equal(done.status, 302, 'login callback: ' + done.text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(-1800));
   const location = new URL(done.headers.get('location'));
-  assert.equal(location.origin + location.pathname, redirect);
+  assert.equal(location.href.split(/[?#]/, 1)[0], redirect);
   assert.equal(location.searchParams.get('state'), state);
   const tokens = await request(`${realm}/protocol/openid-connect/token`, { method: 'POST', headers: origin ? { Origin: origin } : {}, form: {
     grant_type: 'authorization_code', client_id: 'gryt-web', code: location.searchParams.get('code'),

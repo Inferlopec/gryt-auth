@@ -7,7 +7,7 @@ signed-in device approve a device-grant user code for a new device (in-app
 device linking; the protocol is in Gryt-chat/crypto `docs/pairing-design.md`).
 
 - Upstream repository: https://github.com/Gryt-chat/auth (directory `keycloak-pairing/`)
-- Pinned upstream commit: `4bbd2348b65dc4ca61e2c1f39b100fb3d2ed05e4` (main, 2026-11-13)
+- Pinned upstream commit: `77c38ca94dbe5a91adf271c234b535b5d4548fb2` (Auth PR #71; pairing source unchanged from `4bbd2348b65dc4ca61e2c1f39b100fb3d2ed05e4`)
 - License: upstream AGPL-3.0-or-later notice; see [license text](../LICENSES/gryt-auth.txt)
 
 ## Build and version coupling

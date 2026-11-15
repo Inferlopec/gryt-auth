@@ -35,18 +35,20 @@ test('OIDC code + PKCE, refresh, wrong password and wrong verifier', async () =>
   await login('Test-Pass-123', random(48));
 });
 
-test('BUG-01/BUG-02 official Desktop callback and token CORS', async () => {
-  const redirect = 'https://gryt.chat/auth/callback';
+test('BUG-01/BUG-02 Desktop deep-link and legacy HTTPS callbacks with token CORS', async () => {
+  const redirects = ['gryt://auth/callback', 'https://gryt.chat/auth/callback'];
   const origin = 'http://127.0.0.1:15738';
-  const desktop = await login('Test-Pass-123', undefined, { redirect, origin });
-  assert.equal(decodeJwt(desktop.access_token).sub, decodeJwt(tokens.access_token).sub);
-  const refreshed = await request(`${realm}/protocol/openid-connect/token`, {
-    method: 'POST', headers: { Origin: origin }, form: {
-      grant_type: 'refresh_token', client_id: 'gryt-web', refresh_token: desktop.refresh_token,
-    },
-  });
-  assert.equal(refreshed.status, 200);
-  assert.equal(refreshed.headers.get('access-control-allow-origin'), origin);
+  for (const redirect of redirects) {
+    const desktop = await login('Test-Pass-123', undefined, { redirect, origin });
+    assert.equal(decodeJwt(desktop.access_token).sub, decodeJwt(tokens.access_token).sub);
+    const refreshed = await request(`${realm}/protocol/openid-connect/token`, {
+      method: 'POST', headers: { Origin: origin }, form: {
+        grant_type: 'refresh_token', client_id: 'gryt-web', refresh_token: desktop.refresh_token,
+      },
+    });
+    assert.equal(refreshed.status, 200);
+    assert.equal(refreshed.headers.get('access-control-allow-origin'), origin);
+  }
   // OPTIONS alone cannot prove client-specific token response permissions.
   const preflight = await request(`${realm}/protocol/openid-connect/token`, {
     method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST',
@@ -58,14 +60,15 @@ test('BUG-01/BUG-02 official Desktop callback and token CORS', async () => {
     const response = await request(`${realm}/protocol/openid-connect/token`, {
       method: 'POST', headers: { Origin: denied }, form: {
         grant_type: 'authorization_code', client_id: 'gryt-web', code: 'invalid-test-code',
-        redirect_uri: redirect, code_verifier: random(48),
+        redirect_uri: redirects[0], code_verifier: random(48),
       },
     });
     assert.notEqual(response.headers.get('access-control-allow-origin'), denied);
     assert.notEqual(response.headers.get('access-control-allow-origin'), '*');
   }
   for (const denied of ['https://gryt.chat/auth/callback/extra',
-    'https://gryt.chat/other', 'https://gryt.chat.evil.example/auth/callback']) {
+    'https://gryt.chat/other', 'https://gryt.chat.evil.example/auth/callback',
+    'gryt://auth/callback/extra', 'gryt://evil/callback']) {
     const query = new URLSearchParams({ client_id: 'gryt-web', response_type: 'code',
       redirect_uri: denied, code_challenge: digest(random(48)), code_challenge_method: 'S256' });
     const response = await request(`${realm}/protocol/openid-connect/auth?${query}`);

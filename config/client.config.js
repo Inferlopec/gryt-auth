@@ -1,5 +1,5 @@
-// Runtime configuration for the inspected Gryt Client revision. Desktop deep-link
-// handling must still be verified in the selected release on each target OS.
+// Runtime configuration for Gryt Client PR #1197. Verify packaged deep-link handling
+// in an updated Desktop release on each target OS before graphical acceptance.
 window.__GRYT_CONFIG__ = {
   GRYT_OIDC_ISSUER: "https://auth.inferlo.xyz/realms/gryt",
   GRYT_OIDC_REALM: "gryt",

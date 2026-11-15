@@ -5,8 +5,10 @@ one independent auth stack alongside existing Caddy/Gryt services; each server
 keeps its own members, roles, bans, data and media worker.
 
 Source-based installation is available. Isolated protocol/recovery tests passed;
-production acceptance remains open. Official Desktop still uses a Gryt-hosted
-callback. See [readiness and limits](docs/OPERATIONS.md#production-readiness).
+production acceptance remains open. Updated Desktop source supports the `gryt://`
+callback; the exact Gryt-hosted HTTPS callback remains allowed for older releases.
+Graphical acceptance awaits an updated Desktop release. See
+[readiness and limits](docs/OPERATIONS.md#production-readiness).
 
 ## Quick start
 

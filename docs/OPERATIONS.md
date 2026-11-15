@@ -220,7 +220,8 @@ Before public use, establish evidence for each gate:
 - [ ] Custom browser flow enforces required OTP. An OTP setup action or passkey
       registration is not proof of enforcement.
 - [ ] Real Web/Desktop login, restart, device-secret transfer and multi-server checks,
-      including graphical regression of the callback/CORS fixes.
+      including graphical regression of the callback/CORS fixes with an updated
+      Desktop release that handles `gryt://auth/callback`.
 - [ ] SMTP verification and recovery mail delivered.
 - [ ] Encrypted off-host backups and an independent fresh-host restore exercised.
 - [ ] Certificate issuance edge rate limit selected and tested; no separate

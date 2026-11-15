@@ -189,6 +189,7 @@
       "frontchannelLogout": true,
       "redirectUris": [
         "gryt://auth/callback",
+        "http://127.0.0.1:15738/*",
         "https://app.inferlo.xyz/*",
         "http://localhost:3666/*",
         "http://localhost:3667/*",

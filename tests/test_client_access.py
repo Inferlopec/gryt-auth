@@ -9,20 +9,22 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'bootstrap'))
-from client_access import access_settings, CALLBACK, DESKTOP_ORIGIN
+from client_access import access_settings, CALLBACKS, DESKTOP_LOOPBACK_REDIRECT, DESKTOP_ORIGIN
 import configure_client_access
 
 
 class ClientAccessTests(unittest.TestCase):
     def test_template(self):
         client = json.loads((ROOT / 'realm/gryt-realm.json').read_text())['clients'][0]
-        self.assertIn(CALLBACK, client['redirectUris'])
+        for callback in CALLBACKS:
+            self.assertIn(callback, client['redirectUris'])
+        self.assertIn(DESKTOP_LOOPBACK_REDIRECT, client['redirectUris'])
         self.assertIn(DESKTOP_ORIGIN, client['webOrigins'])
         self.assertEqual(access_settings(client), {k: client[k] for k in ('redirectUris', 'webOrigins')})
         self.assertEqual(client['attributes']['pkce.code.challenge.method'], 'S256')
 
     def test_preservation_and_idempotency(self):
-        current = {'redirectUris': ['gryt://auth/callback', 'https://custom.test/cb', 'http://127.0.0.1:*'],
+        current = {'redirectUris': ['https://custom.test/cb', 'http://127.0.0.1:*'],
                    'webOrigins': ['https://custom.test', 'http://127.0.0.1:*']}
         before = copy.deepcopy(current)
         with patch.dict(os.environ, {'GRYT_OIDC_EXTRA_REDIRECT_URIS': '["https://other.test/cb"]',

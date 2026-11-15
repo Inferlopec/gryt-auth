@@ -138,7 +138,8 @@ verification with `-k`.
 
 ### Callback and Origin allowlists
 
-Fresh initialization includes the exact official Desktop callback and renderer
+Fresh initialization includes the Desktop deep-link callback, exact HTTPS
+compatibility callback, upstream loopback redirect on port 15738, and renderer
 Origin described under [Desktop](#desktop-and-web-clients). Additional callbacks
 and Origins use the two additive JSON-array settings in `.env.example`.
 Origins have no path/trailing slash; additions reject wildcards. Inspect the
@@ -284,12 +285,18 @@ On the owner's Desktop 1.15.12 macOS installation, enable
 both the OIDC issuer and Identity Service URL to your configured endpoints.
 Setting only one can send certificate requests to the wrong CA.
 
-Desktop 1.15.12 uses callback `https://gryt.chat/auth/callback` and renderer Origin
-`http://127.0.0.1:15738`; fresh realm initialization permits both exact values.
-Custom auth settings do not change that callback. This is a dependency on the
-Gryt-hosted service; a fully self-hosted handoff remains unverified. Do not
-replace it with an arbitrary SPA route. A custom `gryt://` allowlist entry does
-not prove OS deep-link or packaged-client runtime configuration works.
+The updated Client source in [PR #1197](https://github.com/Gryt-chat/client/pull/1197)
+defaults to `gryt://auth/callback` for a custom issuer. It keeps code, PKCE and
+state handling unchanged and uses that same URI for authorization and token
+exchange. The exact legacy callback `https://gryt.chat/auth/callback` remains
+registered for older Desktop releases. Both use renderer Origin
+`http://127.0.0.1:15738`; the realm also keeps the upstream loopback redirect on
+that exact port. Auth PR [#71](https://github.com/Gryt-chat/auth/pull/71) records
+the exact Origin fix. The isolated Docker-backed integration test passed code +
+PKCE exchange, refresh and denied callback controls for both callbacks, using
+the exact renderer Origin. Graphical deep-link delivery and login remain
+unverified until an updated Desktop release is tested on target OSes. Do not
+replace either callback with an arbitrary SPA route.
 
 For an existing self-hosted web container, adapt
 [config/client.config.js](../config/client.config.js) and bind-mount it read-only
@@ -314,8 +321,9 @@ Using disposable identities, verify Web and Desktop separately:
 5. Verify original official/local users retain their rights on existing servers.
 
 Owner-reported macOS staging login/pairing succeeded after manual allowlist
-corrections. Automated protocol tests passed; a graphical regression after
-repository fixes and graphical Web/production acceptance remain open. See
+corrections on Desktop 1.15.12. The isolated protocol run passed for both the
+new deep-link callback and legacy HTTPS callback; graphical regression with an
+updated Desktop release and graphical Web/production acceptance remain open. See
 [test evidence](DEVELOPMENT.md#recorded-test-evidence) and
 [production readiness](OPERATIONS.md#production-readiness).
 

@@ -4,7 +4,8 @@ import os
 from urllib.parse import urlsplit
 
 
-CALLBACK = "https://gryt.chat/auth/callback"
+CALLBACKS = ("gryt://auth/callback", "https://gryt.chat/auth/callback")
+DESKTOP_LOOPBACK_REDIRECT = "http://127.0.0.1:15738/*"
 DESKTOP_ORIGIN = "http://127.0.0.1:15738"
 
 
@@ -34,10 +35,10 @@ def access_settings(client):
     origins = additions("GRYT_OIDC_EXTRA_WEB_ORIGINS", origin=True)
     result = {}
     for field, required, extra in (
-        ("redirectUris", CALLBACK, redirects),
-        ("webOrigins", DESKTOP_ORIGIN, origins),
+        ("redirectUris", (*CALLBACKS, DESKTOP_LOOPBACK_REDIRECT), redirects),
+        ("webOrigins", (DESKTOP_ORIGIN,), origins),
     ):
         # Remove only the known ineffective legacy entry; preserve operator settings.
         current = [v for v in client.get(field, []) if v != "http://127.0.0.1:*"]
-        result[field] = list(dict.fromkeys([*current, required, *extra]))
+        result[field] = list(dict.fromkeys([*current, *required, *extra]))
     return result
