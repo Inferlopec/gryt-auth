@@ -188,19 +188,41 @@ Admin Console → **Realm settings** → **Themes**. Confirm login, error, accou
 and email pages on desktop and mobile; this built-in theme change adds no custom
 branding.
 
-### SMTP
+### SMTP and email policy
 
-Set the SMTP fields in `.env.example` for your provider, then:
+SMTP configuration is separate from the Keycloak policies that require an
+email address to be verified and allow password recovery. Both policy switches
+default to `false` in `.env.example`; keep them off until SMTP delivery has
+been verified. An enabled policy requires SMTP host and sender settings, but
+the preflight cannot prove that a provider delivers mail.
+
+Set the SMTP fields in your private `.env`, then run:
 
 ```bash
 docker compose run --rm --no-deps keycloak-smtp
 ```
 
-Expected: `SMTP updated; accounts preserved.` The job requires STARTTLS;
-implicit-TLS-only providers are unsupported. Without SMTP, initialization
-explicitly disables verification and password recovery. Send a test email in
-Keycloak realm email settings, then verify email and password recovery with a
-disposable account. Never replace a realm to change mail settings.
+The job requires STARTTLS; implicit-TLS-only providers are unsupported. It
+updates only SMTP settings and leaves both email policy switches unchanged.
+Send a test email in Keycloak **Realm settings → Email** and confirm delivery.
+
+Then set `GRYT_VERIFY_EMAIL` and `GRYT_RESET_PASSWORD_ALLOWED` independently
+in `.env`. Run the policy job first in dry-run mode, review the two values, and
+apply them:
+
+```bash
+docker compose run --rm --no-deps keycloak-email-policy --dry-run
+docker compose run --rm --no-deps keycloak-email-policy
+```
+
+The job changes only those two realm settings and preserves accounts and SMTP
+configuration. Changing `.env` alone does not update an existing realm. For a
+new realm, the settings are read during initialization; leave both `false`,
+initialize, configure and test SMTP, then set the desired values and run the
+policy job. The initializer, preflight and policy job reject enabled email
+features when SMTP host/from are missing. After applying, test verification
+and password recovery with a disposable account. Never replace a realm to
+change mail settings.
 
 ## Connect an existing Gryt server
 

@@ -99,6 +99,8 @@ services:
       GRYT_OIDC_EXTRA_WEB_ORIGINS: ${GRYT_OIDC_EXTRA_WEB_ORIGINS:-[]}
       GRYT_KEYCLOAK_ADMIN_USERNAME: ${GRYT_KEYCLOAK_ADMIN_USERNAME:-admin}
       GRYT_KEYCLOAK_ADMIN_PASSWORD: ${GRYT_KEYCLOAK_ADMIN_PASSWORD:?set in .env}
+      GRYT_VERIFY_EMAIL: ${GRYT_VERIFY_EMAIL:-false}
+      GRYT_RESET_PASSWORD_ALLOWED: ${GRYT_RESET_PASSWORD_ALLOWED:-false}
       GRYT_SMTP_HOST: ${GRYT_SMTP_HOST:-}
       GRYT_SMTP_PORT: ${GRYT_SMTP_PORT:-587}
       GRYT_SMTP_FROM: ${GRYT_SMTP_FROM:-}
@@ -124,6 +126,16 @@ services:
     profiles: ["configure"]
     environment: *admin-environment
     entrypoint: ["python", "/bootstrap/configure_smtp.py"]
+    volumes: *bootstrap-volumes
+    networks: [inferlo-identity]
+    restart: "no"
+    deploy: *job-limits
+
+  keycloak-email-policy:
+    image: python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    profiles: ["configure"]
+    environment: *admin-environment
+    entrypoint: ["python", "/bootstrap/configure_email_policy.py"]
     volumes: *bootstrap-volumes
     networks: [inferlo-identity]
     restart: "no"

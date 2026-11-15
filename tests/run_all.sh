@@ -13,6 +13,7 @@ for arg in "$@"; do
   esac
 done
 python3 tests/test_client_access.py
+python3 tests/test_email_policy.py
 python3 tests/test_deployed_preflight.py
 python3 tests/test_themes.py
 if ! docker info >/dev/null 2>&1; then

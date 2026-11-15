@@ -19,6 +19,9 @@ run 'Save original mail settings'
 "${c[@]}" run --rm --no-deps -e GRYT_SMTP_HOST=mail.example.test \
   -e GRYT_SMTP_FROM=identity@example.test -e 'GRYT_SMTP_FROM_NAME=Inferlo "Tests"' keycloak-smtp
 run 'SMTP update preserves users'
+"${c[@]}" run --rm --no-deps -e GRYT_VERIFY_EMAIL=true \
+  -e GRYT_RESET_PASSWORD_ALLOWED=false keycloak-email-policy
+run 'Email policy update preserves SMTP and users'
 "${c[@]}" exec -T postgres pg_dump -U keycloak -d keycloak > "$GRYT_AUTH_BACKUP_DIR/database.sql"
 gzip "$GRYT_AUTH_BACKUP_DIR/database.sql"
 run 'Create post-backup marker account'

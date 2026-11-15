@@ -54,10 +54,23 @@ test('SMTP update preserves users and safely encodes display name', async () => 
   const token = await adminToken();
   const r = await request(`${KC}/admin/realms/gryt`, { token });
   assert.equal(r.status, 200);
+  const mailBefore = JSON.parse(await readFile('/artifacts/smtp-before.json', 'utf8'));
+  assert.equal(r.data.smtpServer.host, 'mail.example.test');
+  assert.equal(r.data.smtpServer.fromDisplayName, 'Inferlo "Tests"');
+  assert.equal(r.data.verifyEmail, mailBefore.verifyEmail);
+  assert.equal(r.data.resetPasswordAllowed, mailBefore.resetPasswordAllowed);
+  const before = JSON.parse(await readFile('/artifacts/recovery-before.json', 'utf8'));
+  assert.equal(decodeJwt((await login()).access_token).sub, before.sub);
+});
+
+test('Email policy update preserves SMTP and users', async () => {
+  const token = await adminToken();
+  const r = await request(`${KC}/admin/realms/gryt`, { token });
+  assert.equal(r.status, 200);
   try {
     assert.equal(r.data.smtpServer.host, 'mail.example.test');
-    assert.equal(r.data.smtpServer.fromDisplayName, 'Inferlo "Tests"');
     assert.equal(r.data.verifyEmail, true);
+    assert.equal(r.data.resetPasswordAllowed, false);
     const before = JSON.parse(await readFile('/artifacts/recovery-before.json', 'utf8'));
     assert.equal(decodeJwt((await login()).access_token).sub, before.sub);
   } finally {

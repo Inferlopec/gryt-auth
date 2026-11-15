@@ -69,3 +69,21 @@ def smtp_settings():
     if smtp["user"] and not smtp["password"]:
         raise ValueError("GRYT_SMTP_PASS is required when GRYT_SMTP_USER is set")
     return smtp if host else {}
+
+
+def email_policy_settings():
+    """Read the independent Keycloak email policy switches from the environment."""
+    def setting(name):
+        value = os.environ.get(name, "false").strip().lower()
+        if not value:
+            return False
+        if value in ("true", "1", "yes", "on"):
+            return True
+        if value in ("false", "0", "no", "off"):
+            return False
+        raise ValueError(f"{name} must be a boolean (true or false)")
+
+    return {
+        "verifyEmail": setting("GRYT_VERIFY_EMAIL"),
+        "resetPasswordAllowed": setting("GRYT_RESET_PASSWORD_ALLOWED"),
+    }

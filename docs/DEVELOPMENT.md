@@ -48,7 +48,7 @@ does not establish graphical account-secret transfer.
 | `docker-compose.yml` | Independent auth services, private ports, volumes, resource/image pins |
 | `.env.example` | Authoritative stack-variable/default reference; private `.env` supplies values |
 | `realm/gryt-realm.json` | Fresh-realm template; not a live configuration sync mechanism |
-| `bootstrap/` | Admin API initialization and explicit client/security/device/SMTP/theme jobs |
+| `bootstrap/` | Admin API initialization and explicit client/security/device/SMTP/email-policy/theme jobs |
 | `identity/src/` | Token validation, CA/certificates, account keys and relay |
 | `keycloak-pairing/` | Keycloak device-approval provider and Docker build |
 | `scripts/` | Operator initialization, checks, accounts and backup/recovery |
@@ -58,8 +58,11 @@ does not establish graphical account-secret transfer.
 Initialization starts DB/Keycloak, creates only a missing realm, applies policy
 jobs, explicitly provisions the CA and starts Identity/backups. Normal Compose
 startup has no bootstrap-job dependency. Existing realms are skipped by import;
-only the flagged recovery script replaces them. SMTP/allowlist changes use
-read-modify-write jobs rather than realm replacement.
+only the flagged recovery script replaces them. SMTP, email-policy and
+allowlist changes use explicit partial-update jobs rather than realm
+replacement. SMTP setup does not enable verification or password recovery;
+those switches are independent `.env` settings, default off, and applied to an
+existing realm with `keycloak-email-policy` after delivery is verified.
 
 For configuration semantics and explicit apply commands use
 [SETUP](SETUP.md#live-realm-configuration). Internal process-only settings such

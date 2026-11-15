@@ -53,6 +53,27 @@ case "${GRYT_IMPORT_REALM:-0}" in
   *) fail "GRYT_IMPORT_REALM must be 0 or 1, got '${GRYT_IMPORT_REALM}'" ;;
 esac
 
+echo "== Email policy =="
+email_policy_enabled=0
+for v in GRYT_VERIFY_EMAIL GRYT_RESET_PASSWORD_ALLOWED; do
+  value="$(printf '%s' "${!v:-false}" | tr '[:upper:]' '[:lower:]')"
+  case "${value}" in
+    true|1|yes|on)
+      ok "${v} enabled"
+      email_policy_enabled=1
+      ;;
+    false|0|no|off|'') ok "${v} disabled" ;;
+    *) fail "${v} must be a boolean (true or false), got '${!v}'" ;;
+  esac
+done
+if [ "${email_policy_enabled}" -eq 1 ]; then
+  if [ -n "${GRYT_SMTP_HOST:-}" ] && [ -n "${GRYT_SMTP_FROM:-}" ]; then
+    ok "SMTP is configured for enabled email features"
+  else
+    fail "configure SMTP before enabling email verification or password recovery"
+  fi
+fi
+
 echo "== Pairing extension jar =="
 JAR="keycloak-pairing/dist/gryt-pairing.jar"
 if [ -f "${JAR}" ] && [ -s "${JAR}" ]; then
@@ -95,7 +116,7 @@ if grep -q '__GRYT_SMTP_' realm/gryt-realm.json; then
   if [ -n "${GRYT_SMTP_HOST:-}" ] && [ -n "${GRYT_SMTP_FROM:-}" ]; then
     ok "SMTP settings available for explicit initialization / keycloak-smtp job"
   else
-    warn "SMTP is not configured — configure SMTP with the keycloak-smtp job; never replace a realm to change mail settings"
+    warn "SMTP is not configured — configure it with keycloak-smtp; this does not enable email verification or password recovery"
   fi
 fi
 

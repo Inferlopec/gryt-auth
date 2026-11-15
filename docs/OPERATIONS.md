@@ -190,7 +190,7 @@ authorization codes, passwords and keys before sharing diagnostics.
 | Desktop browser login never completes | Check the selected release's callback and OS handler; see [Desktop limitations](SETUP.md#desktop-and-web-clients). An arbitrary SPA route is not a callback bridge. |
 | Login page appears unstyled | Run `scripts/preflight.sh --deployed` for endpoint/configuration checks, then confirm the realm's selected theme and reload without a stale browser cache. Endpoint success does not prove CSS assets render in the graphical client. |
 | Account cannot join | Check server trust order, version, invitation/membership and bans. Stop rollout and [roll back](#rollback) if existing users lose roles. |
-| Verification/reset email absent | Apply `keycloak-smtp`, test realm email delivery, check STARTTLS, sender restrictions and provider logs/spam. Never reimport. |
+| Verification/reset email absent | Check the independent email policy switches and [SMTP setup](SETUP.md#smtp-and-email-policy). Apply `keycloak-smtp` for mail configuration, verify delivery, then apply `keycloak-email-policy` as needed; check STARTTLS, sender restrictions and provider logs/spam. Never reimport. |
 | CA load refused | Check persistent mount/permissions and restore the original key. Do not enable generation or remove its volume to bypass the error. |
 | All devices share pairing rate limit | Confirm Caddy overwrites `CF-Connecting-IP` and Identity trusts the observed proxy socket source; retain rate limits. |
 
